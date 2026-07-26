@@ -10,6 +10,7 @@ import {
   ContactShadows,
 } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
+import { X } from 'lucide-react';
 import * as THREE from 'three';
 import { VULVA_PARTS } from '../cycle/vulvaData';
 
@@ -216,6 +217,45 @@ function VulvaAnatomy({
           />
         </sprite>
       )}
+
+      {/* 选中部位的讲解卡：直接锚定在部位标注旁（顶部部位向下弹，其余向上弹） */}
+      {selected &&
+        PART_SPOTS[selected] &&
+        (() => {
+          const part = VULVA_PARTS.find((p) => p.name === selected);
+          if (!part) return null;
+          const below = PART_SPOTS[selected].label[1] > 1.8;
+          return (
+            <Html position={PART_SPOTS[selected].label} distanceFactor={9.5} zIndexRange={[40, 0]}>
+              <div
+                className="phase-in w-[230px] rounded-2xl border p-3.5 backdrop-blur-2xl"
+                style={{
+                  transform: below ? 'translate(-50%, 20px)' : 'translate(-50%, calc(-100% - 20px))',
+                  borderColor: `${part.color}55`,
+                  background: 'rgba(20, 9, 16, 0.88)',
+                  boxShadow: `0 12px 40px rgba(0,0,0,0.55), 0 0 28px ${part.color}25`,
+                  pointerEvents: 'auto',
+                }}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span
+                    className="font-display text-[15px] font-bold"
+                    style={{ color: part.color, textShadow: `0 0 14px ${part.color}60` }}
+                  >
+                    {part.name}
+                  </span>
+                  <button
+                    onClick={() => onSelect(null)}
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white/40 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+                <p className="mt-1.5 text-[11.5px] leading-relaxed text-white/75">{part.desc}</p>
+              </div>
+            </Html>
+          );
+        })()}
 
       {/* 交互式标注 */}
       {showLabels &&

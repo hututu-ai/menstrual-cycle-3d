@@ -3,15 +3,12 @@ import CycleScene from '../components/CycleScene';
 import PhasePanel from '../components/PhasePanel';
 import TimelineControls from '../components/TimelineControls';
 import { CYCLE_DAYS, phaseAt } from '../cycle/cycleData';
-import { VULVA_PARTS } from '../cycle/vulvaData';
-import { Tag, MousePointer2, BookOpen, Venus, Sparkle, X, Hourglass } from 'lucide-react';
+import { Tag, MousePointer2, BookOpen, Venus, Sparkle } from 'lucide-react';
 import KnowledgeBase from '../components/KnowledgeBase';
 import VulvaScene from '../components/VulvaScene';
 import VulvaPanel from '../components/VulvaPanel';
-import LifeScene from '../components/LifeScene';
-import LifePanel from '../components/LifePanel';
 
-type ViewMode = 'internal' | 'vulva' | 'life';
+type ViewMode = 'internal' | 'vulva';
 
 export default function Home() {
   const [day, setDay] = useState(() => {
@@ -24,11 +21,9 @@ export default function Home() {
   const [kbOpen, setKbOpen] = useState(false);
   const [view, setView] = useState<ViewMode>(() => {
     const v = new URLSearchParams(window.location.search).get('view');
-    return v === 'vulva' ? 'vulva' : v === 'life' ? 'life' : 'internal';
+    return v === 'vulva' ? 'vulva' : 'internal';
   });
   const [selectedPart, setSelectedPart] = useState<string | null>(null);
-  const [lifeStage, setLifeStage] = useState<string | null>(null);
-  const selectedPartInfo = selectedPart ? VULVA_PARTS.find((p) => p.name === selectedPart) : null;
   const rafRef = useRef<number>(0);
   const lastRef = useRef<number>(0);
   const phase = phaseAt(day);
@@ -110,7 +105,6 @@ export default function Home() {
           {view === 'vulva' && (
             <VulvaScene showLabels={showLabels} selected={selectedPart} onSelect={setSelectedPart} />
           )}
-          {view === 'life' && <LifeScene selected={lifeStage} onSelect={setLifeStage} />}
 
           {/* 视图切换 */}
           <div className="absolute left-1/2 top-2 flex -translate-x-1/2 overflow-hidden rounded-full border border-white/10 bg-[#140910]/70 backdrop-blur-xl">
@@ -118,7 +112,6 @@ export default function Home() {
               [
                 { id: 'internal', label: '内部器官 · 周期', icon: Sparkle },
                 { id: 'vulva', label: '认识外阴', icon: Venus },
-                { id: 'life', label: '一生地图', icon: Hourglass },
               ] as const
             ).map((v) => {
               const active = view === v.id;
@@ -142,37 +135,6 @@ export default function Home() {
               );
             })}
           </div>
-
-          {/* 外阴讲解卡：固定在画布左下角，不遮挡模型 */}
-          {view === 'vulva' && selectedPartInfo && (
-            <div className="absolute bottom-6 left-6 w-[280px]">
-              <div
-                className="phase-in rounded-2xl border p-4 backdrop-blur-2xl"
-                style={{
-                  borderColor: `${selectedPartInfo.color}50`,
-                  background: 'rgba(20, 9, 16, 0.82)',
-                  boxShadow: `0 12px 40px rgba(0,0,0,0.5), 0 0 32px ${selectedPartInfo.color}20`,
-                }}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <span
-                    className="font-display text-[16px] font-bold"
-                    style={{ color: selectedPartInfo.color, textShadow: `0 0 16px ${selectedPartInfo.color}60` }}
-                  >
-                    {selectedPartInfo.name}
-                  </span>
-                  <button
-                    onClick={() => setSelectedPart(null)}
-                    className="flex h-5 w-5 items-center justify-center rounded-full text-white/40 transition hover:bg-white/10 hover:text-white"
-                  >
-                    <X size={11} />
-                  </button>
-                </div>
-                <p className="mt-2 text-[12px] leading-relaxed text-white/75">{selectedPartInfo.desc}</p>
-                <p className="mt-2 text-[9px] text-white/30">点击模型上的其他部位可继续探索</p>
-              </div>
-            </div>
-          )}
 
           {/* 大字天数覆盖层（仅周期视图） */}
           {view === 'internal' && (
@@ -202,7 +164,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* 悬浮式时间轴（仅周期视图） */}
+          {/* 悬浮式时间轴（仅周期视图）：一生激素长卷 + 28 天周期 */}
           {view === 'internal' && (
             <TimelineControls
               day={day}
@@ -225,7 +187,6 @@ export default function Home() {
             <PhasePanel day={day} onJumpTo={(d) => setDay(d)} />
           )}
           {view === 'vulva' && <VulvaPanel />}
-          {view === 'life' && <LifePanel selected={lifeStage} onSelect={setLifeStage} />}
         </aside>
       </div>
 

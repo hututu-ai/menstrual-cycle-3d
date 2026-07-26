@@ -1,5 +1,6 @@
 import { PHASES, CYCLE_DAYS, phaseAt } from '../cycle/cycleData';
 import { Play, Pause, RotateCcw } from 'lucide-react';
+import LifeStrip from './LifeStrip';
 
 const EVENTS: { day: number; label: string; color: string }[] = [
   { day: 1, label: '月经来潮', color: '#fb6f92' },
@@ -35,6 +36,9 @@ export default function TimelineControls({
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-5">
       <div className="glass pointer-events-auto w-[min(760px,94%)] rounded-2xl px-5 pb-3.5 pt-3">
+        {/* 一生激素长卷（可折叠） */}
+        <LifeStrip />
+
         {/* 阶段色带 */}
         <div className="relative mb-1 h-2 w-full overflow-hidden rounded-full bg-white/5">
           {PHASES.map((p) => {
