@@ -10,7 +10,13 @@ const ICONS: Record<string, typeof Eye> = {
   Hand,
 };
 
-export default function VulvaPanel() {
+export default function VulvaPanel({
+  selected,
+  onSelect,
+}: {
+  selected: string | null;
+  onSelect: (name: string | null) => void;
+}) {
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-5">
       {/* 标题 */}
@@ -31,24 +37,39 @@ export default function VulvaPanel() {
         </p>
       </div>
 
-      {/* 部位导览 */}
+      {/* 部位导览（点击与 3D 模型联动） */}
       <div className="glass rounded-2xl p-4">
         <h3 className="text-[13px] font-semibold text-white/80">部位导览</h3>
-        <ul className="mt-2.5 space-y-2.5">
-          {VULVA_PARTS.map((p) => (
-            <li key={p.name} className="flex gap-2.5">
-              <span
-                className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ background: p.color, boxShadow: `0 0 8px ${p.color}` }}
-              />
-              <div>
-                <span className="text-[12.5px] font-semibold" style={{ color: p.color }}>
-                  {p.name}
-                </span>
-                <p className="mt-0.5 text-[11.5px] leading-relaxed text-white/55">{p.desc}</p>
-              </div>
-            </li>
-          ))}
+        <p className="mt-0.5 text-[10px] text-white/35">点击部位，在 3D 模型上查看标注讲解</p>
+        <ul className="mt-2.5 space-y-1.5">
+          {VULVA_PARTS.map((p) => {
+            const active = selected === p.name;
+            return (
+              <li key={p.name}>
+                <button
+                  onClick={() => onSelect(active ? null : p.name)}
+                  className="flex w-full gap-2.5 rounded-xl border p-2 text-left transition-all"
+                  style={{
+                    borderColor: active ? `${p.color}66` : 'transparent',
+                    background: active ? `${p.color}14` : 'transparent',
+                  }}
+                >
+                  <span
+                    className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ background: p.color, boxShadow: `0 0 8px ${p.color}` }}
+                  />
+                  <div>
+                    <span className="text-[12.5px] font-semibold" style={{ color: p.color }}>
+                      {p.name}
+                    </span>
+                    <p className={`mt-0.5 text-[11.5px] leading-relaxed ${active ? 'text-white/80' : 'text-white/50'}`}>
+                      {p.desc}
+                    </p>
+                  </div>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       </div>
 

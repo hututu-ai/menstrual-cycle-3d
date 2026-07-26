@@ -19,6 +19,7 @@ export default function Home() {
   const [view, setView] = useState<ViewMode>(() =>
     new URLSearchParams(window.location.search).get('view') === 'vulva' ? 'vulva' : 'internal'
   );
+  const [selectedPart, setSelectedPart] = useState<string | null>(null);
   const rafRef = useRef<number>(0);
   const lastRef = useRef<number>(0);
   const phase = phaseAt(day);
@@ -94,7 +95,7 @@ export default function Home() {
           {view === 'internal' ? (
             <CycleScene day={day} showLabels={showLabels} />
           ) : (
-            <VulvaScene showLabels={showLabels} />
+            <VulvaScene showLabels={showLabels} selected={selectedPart} onSelect={setSelectedPart} />
           )}
 
           {/* 视图切换 */}
@@ -110,7 +111,10 @@ export default function Home() {
               return (
                 <button
                   key={v.id}
-                  onClick={() => setView(v.id)}
+                  onClick={() => {
+                    setView(v.id);
+                    setSelectedPart(null);
+                  }}
                   className="flex items-center gap-1.5 px-4 py-2 text-[12px] transition-all"
                   style={{
                     background: active ? 'rgba(251,113,133,0.15)' : 'transparent',
@@ -174,7 +178,7 @@ export default function Home() {
           {view === 'internal' ? (
             <PhasePanel day={day} onJumpTo={(d) => setDay(d)} />
           ) : (
-            <VulvaPanel />
+            <VulvaPanel selected={selectedPart} onSelect={setSelectedPart} />
           )}
         </aside>
       </div>

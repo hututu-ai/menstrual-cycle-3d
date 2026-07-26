@@ -11,32 +11,76 @@ import {
 } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
+import { VULVA_PARTS } from '../cycle/vulvaData';
 
-/* ---------------------------------- 标签 ---------------------------------- */
+/* ---------------------------------- 工具 ---------------------------------- */
 
-function Tag({
+function makeRadialTexture(inner: string, mid: string, outer: string) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  g.addColorStop(0, inner);
+  g.addColorStop(0.45, mid);
+  g.addColorStop(1, outer);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c);
+}
+
+/* ---------------------------------- 交互式标注 ---------------------------------- */
+
+function Hotspot({
   position,
-  text,
-  color = '#f9a8d4',
+  name,
+  color,
+  desc,
+  selected,
+  onSelect,
 }: {
   position: [number, number, number];
-  text: string;
-  color?: string;
+  name: string;
+  color: string;
+  desc: string;
+  selected: boolean;
+  onSelect: (name: string | null) => void;
 }) {
   return (
     <Html position={position} center distanceFactor={9.5} zIndexRange={[10, 0]}>
-      <div
-        className="pointer-events-none select-none whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-medium tracking-wide backdrop-blur-xl"
-        style={{
-          border: `1px solid ${color}40`,
-          color,
-          background: 'rgba(20, 9, 16, 0.6)',
-          boxShadow: `0 0 24px ${color}30, inset 0 1px 0 rgba(255,255,255,0.08)`,
-          textShadow: `0 0 12px ${color}80`,
-        }}
-      >
-        {text}
-      </div>
+      {selected ? (
+        <button
+          onClick={() => onSelect(null)}
+          className="block w-[200px] cursor-pointer rounded-xl border p-3 text-left backdrop-blur-xl transition-transform hover:scale-[1.02]"
+          style={{
+            borderColor: `${color}70`,
+            background: 'rgba(20, 9, 16, 0.88)',
+            boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 28px ${color}30`,
+            pointerEvents: 'auto',
+          }}
+        >
+          <span className="text-[13px] font-bold" style={{ color, textShadow: `0 0 12px ${color}80` }}>
+            {name}
+          </span>
+          <span className="mt-1.5 block text-[11px] leading-relaxed text-white/75">{desc}</span>
+          <span className="mt-1.5 block text-[9px] text-white/30">点击卡片收起</span>
+        </button>
+      ) : (
+        <button
+          onClick={() => onSelect(name)}
+          className="whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-medium tracking-wide backdrop-blur-xl transition-transform hover:scale-110"
+          style={{
+            border: `1px solid ${color}55`,
+            color,
+            background: 'rgba(20, 9, 16, 0.65)',
+            boxShadow: `0 0 24px ${color}30, inset 0 1px 0 rgba(255,255,255,0.08)`,
+            textShadow: `0 0 12px ${color}80`,
+            pointerEvents: 'auto',
+            cursor: 'pointer',
+          }}
+        >
+          {name}
+        </button>
+      )}
     </Html>
   );
 }
@@ -95,77 +139,129 @@ function useSkinMats() {
 
 /* ---------------------------------- 解剖模型（正视图） ---------------------------------- */
 
-function VulvaAnatomy({ showLabels }: { showLabels: boolean }) {
+// 各部位的标签位置与点击高亮光点位置
+const PART_SPOTS: Record<string, { label: [number, number, number]; glow: [number, number, number] }> = {
+  阴阜: { label: [0, 2.45, 0.2], glow: [0, 1.5, 0.55] },
+  大阴唇: { label: [1.62, 0.55, 0.2], glow: [0.62, -0.25, 0.62] },
+  小阴唇: { label: [-1.42, -0.15, 0.4], glow: [-0.3, -0.3, 0.62] },
+  阴蒂: { label: [1.15, 1.18, 0.55], glow: [0, 0.76, 0.62] },
+  尿道口: { label: [-1.1, 0.55, 0.55], glow: [0, 0.12, 0.62] },
+  阴道口: { label: [1.2, -0.78, 0.45], glow: [0, -0.68, 0.6] },
+  会阴: { label: [0, -2.0, 0.2], glow: [0, -1.55, 0.4] },
+};
+
+function VulvaAnatomy({
+  showLabels,
+  selected,
+  onSelect,
+}: {
+  showLabels: boolean;
+  selected: string | null;
+  onSelect: (name: string | null) => void;
+}) {
   const mats = useSkinMats();
+  const glowTex = useMemo(
+    () => makeRadialTexture('rgba(255,255,255,0.95)', 'rgba(251,139,167,0.4)', 'rgba(251,139,167,0)'),
+    []
+  );
+
+  const pick =
+    (name: string) =>
+    (e: { stopPropagation: () => void }) => {
+      e.stopPropagation();
+      onSelect(selected === name ? null : name);
+    };
 
   return (
     <group>
       {/* 身体底色（会阴区域皮肤） */}
-      <mesh position={[0, -0.1, -0.6]} scale={[2.3, 3.0, 0.85]} material={mats.pad}>
+      <mesh position={[0, -0.1, -0.6]} scale={[2.3, 3.0, 0.85]} material={mats.pad} onClick={pick('会阴')}>
         <sphereGeometry args={[1, 64, 48]} />
       </mesh>
 
       {/* 阴阜 */}
-      <mesh position={[0, 1.5, -0.05]} scale={[1.05, 0.78, 0.5]} material={mats.pad}>
+      <mesh position={[0, 1.5, -0.05]} scale={[1.05, 0.78, 0.5]} material={mats.pad} onClick={pick('阴阜')}>
         <sphereGeometry args={[1, 48, 36]} />
       </mesh>
 
       {/* 大阴唇 */}
-      <mesh position={[0.62, -0.25, 0.05]} rotation={[0, 0, -0.1]} scale={[0.6, 1.85, 0.5]} material={mats.majora}>
+      <mesh position={[0.62, -0.25, 0.05]} rotation={[0, 0, -0.1]} scale={[0.6, 1.85, 0.5]} material={mats.majora} onClick={pick('大阴唇')}>
         <sphereGeometry args={[1, 48, 36]} />
       </mesh>
-      <mesh position={[-0.62, -0.25, 0.05]} rotation={[0, 0, 0.1]} scale={[0.6, 1.85, 0.5]} material={mats.majora}>
+      <mesh position={[-0.62, -0.25, 0.05]} rotation={[0, 0, 0.1]} scale={[0.6, 1.85, 0.5]} material={mats.majora} onClick={pick('大阴唇')}>
         <sphereGeometry args={[1, 48, 36]} />
       </mesh>
 
       {/* 小阴唇 */}
-      <mesh position={[0.3, -0.3, 0.32]} rotation={[0, 0, -0.06]} scale={[0.24, 1.3, 0.26]} material={mats.minora}>
+      <mesh position={[0.3, -0.3, 0.32]} rotation={[0, 0, -0.06]} scale={[0.24, 1.3, 0.26]} material={mats.minora} onClick={pick('小阴唇')}>
         <sphereGeometry args={[1, 40, 30]} />
       </mesh>
-      <mesh position={[-0.3, -0.3, 0.32]} rotation={[0, 0, 0.06]} scale={[0.24, 1.3, 0.26]} material={mats.minora}>
+      <mesh position={[-0.3, -0.3, 0.32]} rotation={[0, 0, 0.06]} scale={[0.24, 1.3, 0.26]} material={mats.minora} onClick={pick('小阴唇')}>
         <sphereGeometry args={[1, 40, 30]} />
       </mesh>
 
       {/* 阴蒂（包皮 + 蒂头） */}
-      <mesh position={[0, 0.84, 0.4]} scale={[0.24, 0.26, 0.17]} material={mats.minora}>
+      <mesh position={[0, 0.84, 0.4]} scale={[0.24, 0.26, 0.17]} material={mats.minora} onClick={pick('阴蒂')}>
         <sphereGeometry args={[1, 32, 24]} />
       </mesh>
-      <mesh position={[0, 0.74, 0.47]} material={mats.clitoris}>
+      <mesh position={[0, 0.74, 0.47]} material={mats.clitoris} onClick={pick('阴蒂')}>
         <sphereGeometry args={[0.11, 24, 18]} />
       </mesh>
 
       {/* 尿道口 */}
-      <mesh position={[0, 0.12, 0.48]} material={mats.urethra}>
+      <mesh position={[0, 0.12, 0.48]} material={mats.urethra} onClick={pick('尿道口')}>
         <sphereGeometry args={[0.055, 16, 12]} />
       </mesh>
 
       {/* 阴道口（边缘 + 开口） */}
-      <mesh position={[0, -0.68, 0.3]} scale={[0.4, 0.62, 0.16]} material={mats.minora}>
+      <mesh position={[0, -0.68, 0.3]} scale={[0.4, 0.62, 0.16]} material={mats.minora} onClick={pick('阴道口')}>
         <sphereGeometry args={[1, 40, 30]} />
       </mesh>
-      <mesh position={[0, -0.68, 0.4]} scale={[0.28, 0.5, 0.1]} material={mats.opening}>
+      <mesh position={[0, -0.68, 0.4]} scale={[0.28, 0.5, 0.1]} material={mats.opening} onClick={pick('阴道口')}>
         <sphereGeometry args={[1, 40, 30]} />
       </mesh>
 
-      {/* 标签 */}
-      {showLabels && (
-        <>
-          <Tag position={[0, 2.45, 0.2]} text="阴阜" color="#f2c09a" />
-          <Tag position={[1.55, 0.55, 0.2]} text="大阴唇" color="#e8a87c" />
-          <Tag position={[-1.35, -0.15, 0.4]} text="小阴唇" color="#f472b6" />
-          <Tag position={[1.1, 1.15, 0.55]} text="阴蒂" color="#fb7185" />
-          <Tag position={[-1.05, 0.55, 0.55]} text="尿道口" color="#fbbf24" />
-          <Tag position={[1.15, -0.75, 0.45]} text="阴道口" color="#a78bfa" />
-          <Tag position={[0, -1.95, 0.2]} text="会阴" color="#c4b5fd" />
-        </>
+      {/* 选中部位的光点 */}
+      {selected && PART_SPOTS[selected] && (
+        <sprite position={PART_SPOTS[selected].glow} scale={[0.85, 0.85, 1]}>
+          <spriteMaterial
+            map={glowTex}
+            transparent
+            opacity={0.85}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </sprite>
       )}
+
+      {/* 交互式标注 */}
+      {showLabels &&
+        VULVA_PARTS.map((p) => (
+          <Hotspot
+            key={p.name}
+            position={PART_SPOTS[p.name].label}
+            name={p.name}
+            color={p.color}
+            desc={p.desc}
+            selected={selected === p.name}
+            onSelect={onSelect}
+          />
+        ))}
     </group>
   );
 }
 
 /* ---------------------------------- 场景 ---------------------------------- */
 
-export default function VulvaScene({ showLabels }: { showLabels: boolean }) {
+export default function VulvaScene({
+  showLabels,
+  selected,
+  onSelect,
+}: {
+  showLabels: boolean;
+  selected: string | null;
+  onSelect: (name: string | null) => void;
+}) {
   return (
     <Canvas
       camera={{ position: [0, -0.05, 6.4], fov: 42 }}
@@ -188,7 +284,7 @@ export default function VulvaScene({ showLabels }: { showLabels: boolean }) {
 
       <Float speed={1} rotationIntensity={0.06} floatIntensity={0.15}>
         <group position={[0, 0.1, 0]} scale={0.74}>
-          <VulvaAnatomy showLabels={showLabels} />
+          <VulvaAnatomy showLabels={showLabels} selected={selected} onSelect={onSelect} />
         </group>
       </Float>
 
@@ -202,7 +298,7 @@ export default function VulvaScene({ showLabels }: { showLabels: boolean }) {
         maxDistance={9}
         maxPolarAngle={Math.PI * 0.65}
         minPolarAngle={Math.PI * 0.3}
-        autoRotate
+        autoRotate={!selected}
         autoRotateSpeed={0.35}
       />
 
