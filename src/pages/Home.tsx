@@ -33,12 +33,12 @@ export default function Home() {
   const lastRef = useRef<number>(0);
   const phase = phaseAt(day);
 
-  // 播放循环：1x ≈ 每秒推进 1.4 天
+  // 播放循环：1x ≈ 每秒推进 1.4 天（dt 钳制，防止后台/卡顿后天数瞬移）
   useEffect(() => {
     if (!playing) return;
     lastRef.current = performance.now();
     const tick = (now: number) => {
-      const dt = (now - lastRef.current) / 1000;
+      const dt = Math.min((now - lastRef.current) / 1000, 0.05);
       lastRef.current = now;
       setDay((d) => {
         const next = d + dt * 1.4 * speed;
@@ -49,6 +49,11 @@ export default function Home() {
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
   }, [playing, speed]);
+
+  // 调试钩子：e2e 截图可精确定位天数
+  useEffect(() => {
+    (window as unknown as { __cycleSetDay?: (d: number) => void }).__cycleSetDay = setDay;
+  }, []);
 
   return (
     <div

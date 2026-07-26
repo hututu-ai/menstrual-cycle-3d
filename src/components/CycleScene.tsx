@@ -17,6 +17,7 @@ import {
   corpusLuteumSize,
   eggJourney,
   menstrualFlow,
+  cervicalMucus,
   phaseAt,
 } from '../cycle/cycleData';
 
@@ -37,10 +38,19 @@ function makeRadialTexture(inner: string, mid: string, outer: string) {
 
 /* ---------------------------------- 几何轮廓 ---------------------------------- */
 
+/** 子宫解剖轮廓：宫颈 → 峡部 → 宫体 → 宫底（圆润穹顶的梨形） */
 const UTERUS_PROFILE: [number, number][] = [
-  [0.001, 0], [0.14, 0.02], [0.17, 0.2], [0.22, 0.42], [0.4, 0.75],
-  [0.62, 1.15], [0.8, 1.55], [0.9, 1.9], [0.88, 2.2], [0.72, 2.45],
-  [0.42, 2.6], [0.12, 2.68], [0.001, 2.7],
+  [0.001, 0], [0.16, 0.05], [0.19, 0.3], [0.18, 0.55], // 宫颈（窄）
+  [0.22, 0.78], // 峡部
+  [0.38, 1.05], [0.6, 1.35], [0.78, 1.7], // 宫体渐宽
+  [0.9, 2.05], [0.94, 2.4], // 最宽处
+  [0.88, 2.7], [0.72, 2.95], [0.48, 3.12], [0.22, 3.2], [0.001, 3.22], // 宫底圆穹顶
+];
+
+/** 子宫内膜轮廓：贴合宫腔壁的内衬（峡部以上） */
+const ENDO_PROFILE: [number, number][] = [
+  [0.001, 1.0], [0.16, 1.1], [0.32, 1.35], [0.46, 1.7],
+  [0.56, 2.05], [0.58, 2.4], [0.5, 2.68], [0.28, 2.88], [0.001, 2.95],
 ];
 
 function smoothProfile(pts: [number, number][], samples = 110): THREE.Vector2[] {
@@ -49,29 +59,29 @@ function smoothProfile(pts: [number, number][], samples = 110): THREE.Vector2[] 
 }
 
 const RIGHT_TUBE_POINTS = [
-  new THREE.Vector3(0.5, 2.18, 0),
-  new THREE.Vector3(1.0, 2.38, 0.05),
-  new THREE.Vector3(1.5, 2.32, 0.1),
-  new THREE.Vector3(1.85, 2.05, 0.12),
+  new THREE.Vector3(0.78, 2.52, 0),
+  new THREE.Vector3(1.15, 2.7, 0.05),
+  new THREE.Vector3(1.6, 2.58, 0.1),
+  new THREE.Vector3(1.88, 2.18, 0.12),
 ];
 
-const OVARY_R = new THREE.Vector3(2.12, 1.82, 0.12);
-const OVARY_L = new THREE.Vector3(-2.12, 1.82, 0.12);
+const OVARY_R = new THREE.Vector3(2.05, 1.9, 0.12);
+const OVARY_L = new THREE.Vector3(-2.05, 1.9, 0.12);
+const FOLLICLE_POS = new THREE.Vector3(2.22, 2.08, 0.3);
 
-
-/* ---------------------------------- 经血粒子 ---------------------------------- */
+/* ---------------------------------- 经血粒子（宫腔内壁 → 宫颈漏斗 → 阴道） ---------------------------------- */
 
 function BloodParticles({ intensity }: { intensity: number }) {
-  const count = 260;
+  const count = 300;
   const ref = useRef<THREE.Points>(null);
   const data = useMemo(() => {
     const positions = new Float32Array(count * 3);
     const speeds = new Float32Array(count);
     for (let i = 0; i < count; i++) {
-      const r = 0.3 * Math.sqrt(Math.random());
+      const r = 0.42 * Math.sqrt(Math.random());
       const a = Math.random() * Math.PI * 2;
       positions[i * 3] = Math.cos(a) * r;
-      positions[i * 3 + 1] = 0.5 + Math.random() * 1.8;
+      positions[i * 3 + 1] = 1.0 + Math.random() * 1.6; // 从宫腔内壁高度出发
       positions[i * 3 + 2] = Math.sin(a) * r;
       speeds[i] = 0.55 + Math.random() * 0.9;
     }
@@ -84,11 +94,16 @@ function BloodParticles({ intensity }: { intensity: number }) {
     const arr = pos.array as Float32Array;
     for (let i = 0; i < count; i++) {
       arr[i * 3 + 1] -= data.speeds[i] * delta * (0.6 + intensity);
-      if (arr[i * 3 + 1] < -1.7) {
-        const r = 0.3 * Math.sqrt(Math.random());
+      // 进入宫颈（y < 0.9）后向中轴汇聚，形成漏斗
+      if (arr[i * 3 + 1] < 0.9) {
+        arr[i * 3] *= 1 - delta * 1.6;
+        arr[i * 3 + 2] *= 1 - delta * 1.6;
+      }
+      if (arr[i * 3 + 1] < -1.75) {
+        const r = 0.42 * Math.sqrt(Math.random());
         const a = Math.random() * Math.PI * 2;
         arr[i * 3] = Math.cos(a) * r;
-        arr[i * 3 + 1] = 1.4 + Math.random() * 0.9;
+        arr[i * 3 + 1] = 1.2 + Math.random() * 1.4;
         arr[i * 3 + 2] = Math.sin(a) * r;
       }
     }
@@ -102,8 +117,8 @@ function BloodParticles({ intensity }: { intensity: number }) {
         <bufferAttribute attach="attributes-position" args={[data.positions.slice(), 3]} />
       </bufferGeometry>
       <pointsMaterial
-        color="#ff5c7a"
-        size={0.075}
+        color="#ff4d6e"
+        size={0.07}
         transparent
         opacity={0.95 * intensity}
         sizeAttenuation
@@ -111,6 +126,123 @@ function BloodParticles({ intensity }: { intensity: number }) {
         blending={THREE.AdditiveBlending}
       />
     </points>
+  );
+}
+
+/* ---------------------------------- 内膜剥脱碎片（经期时从内膜表面崩落） ---------------------------------- */
+
+function SheddingFragments({ intensity }: { intensity: number }) {
+  const count = 90;
+  const ref = useRef<THREE.Points>(null);
+  const data = useMemo(() => {
+    const positions = new Float32Array(count * 3);
+    const speeds = new Float32Array(count);
+    const seeds = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      // 贴在内膜壁附近
+      const a = Math.random() * Math.PI * 2;
+      const r = 0.3 + Math.random() * 0.16;
+      positions[i * 3] = Math.cos(a) * r;
+      positions[i * 3 + 1] = 1.3 + Math.random() * 1.3;
+      positions[i * 3 + 2] = Math.sin(a) * r;
+      speeds[i] = 0.22 + Math.random() * 0.35;
+      seeds[i] = Math.random() * Math.PI * 2;
+    }
+    return { positions, speeds, seeds };
+  }, []);
+
+  useFrame(({ clock }, delta) => {
+    if (!ref.current || intensity <= 0) return;
+    const t = clock.elapsedTime;
+    const pos = ref.current.geometry.attributes.position as THREE.BufferAttribute;
+    const arr = pos.array as Float32Array;
+    for (let i = 0; i < count; i++) {
+      arr[i * 3 + 1] -= data.speeds[i] * delta * (0.5 + intensity * 0.8);
+      arr[i * 3] += Math.sin(t * 2.2 + data.seeds[i]) * delta * 0.06; // 崩落时轻微摇摆
+      if (arr[i * 3 + 1] < 0.85) {
+        const a = Math.random() * Math.PI * 2;
+        const r = 0.3 + Math.random() * 0.16;
+        arr[i * 3] = Math.cos(a) * r;
+        arr[i * 3 + 1] = 1.4 + Math.random() * 1.2;
+        arr[i * 3 + 2] = Math.sin(a) * r;
+      }
+    }
+    pos.needsUpdate = true;
+  });
+
+  if (intensity <= 0) return null;
+  return (
+    <points ref={ref}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[data.positions.slice(), 3]} />
+      </bufferGeometry>
+      <pointsMaterial
+        color="#c2143f"
+        size={0.12}
+        transparent
+        opacity={0.9 * intensity}
+        sizeAttenuation
+        depthWrite={false}
+      />
+    </points>
+  );
+}
+
+/* ---------------------------------- 排卵破裂光环 ---------------------------------- */
+
+function OvulationBurst({ day }: { day: number }) {
+  const p = (day - 14) / 0.9;
+  if (p < 0 || p > 1) return null;
+  const s = 0.25 + p * 1.5;
+  const opacity = (1 - p) * 0.95;
+  return (
+    <group position={FOLLICLE_POS}>
+      <mesh>
+        <ringGeometry args={[0.16, 0.2, 48]} />
+        <meshBasicMaterial
+          color="#ffd6e6"
+          transparent
+          opacity={opacity}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+      {/* 放射小碎片 */}
+      {Array.from({ length: 12 }).map((_, i) => {
+        const a = (i / 12) * Math.PI * 2;
+        const d = 0.1 + p * 0.55;
+        return (
+          <mesh key={i} position={[Math.cos(a) * d, Math.sin(a) * d, 0]} scale={s * 0.16}>
+            <sphereGeometry args={[0.1, 10, 8]} />
+            <meshBasicMaterial
+              color="#ffe9a8"
+              transparent
+              opacity={opacity * 0.9}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+            />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
+/* ---------------------------------- 魔环光晕 ---------------------------------- */
+
+function HaloRing({ radius, color, tilt, speed, opacity }: {
+  radius: number; color: string; tilt: number; speed: number; opacity: number;
+}) {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame((_, delta) => {
+    if (ref.current) ref.current.rotation.z += delta * speed;
+  });
+  return (
+    <mesh ref={ref} rotation={[tilt, 0, 0]} position={[0, 1.1, 0]}>
+      <torusGeometry args={[radius, 0.012, 8, 128]} />
+      <meshBasicMaterial color={color} transparent opacity={opacity} depthWrite={false} blending={THREE.AdditiveBlending} />
+    </mesh>
   );
 }
 
@@ -152,6 +284,7 @@ function Anatomy({ day, showLabels }: { day: number; showLabels: boolean }) {
   const luteum = corpusLuteumSize(day);
   const egg = eggJourney(day);
   const phase = phaseAt(day);
+  const mucus = cervicalMucus(day);
 
   const breathRef = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
@@ -166,15 +299,12 @@ function Anatomy({ day, showLabels }: { day: number; showLabels: boolean }) {
     []
   );
 
-  const endoGeo = useMemo(() => {
-    const pts = UTERUS_PROFILE.map(([r, y]): [number, number] => [
-      r <= 0.001 ? 0.001 : Math.max(0.02, r * 0.52),
-      0.5 + y * 0.68,
-    ]);
-    return new THREE.LatheGeometry(smoothProfile(pts), 72);
-  }, []);
+  const endoGeo = useMemo(
+    () => new THREE.LatheGeometry(smoothProfile(ENDO_PROFILE, 90), 72),
+    []
+  );
 
-  const endoScale = 0.35 + thickness * 0.75;
+  const endoScale = 0.32 + thickness * 0.88;
 
   const tubeGeoR = useMemo(
     () => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(RIGHT_TUBE_POINTS), 64, 0.055, 16, false),
@@ -193,26 +323,35 @@ function Anatomy({ day, showLabels }: { day: number; showLabels: boolean }) {
     () => makeRadialTexture('rgba(255,244,214,1)', 'rgba(255,214,150,0.35)', 'rgba(255,214,150,0)'),
     []
   );
+  const cavityGlowTex = useMemo(
+    () => makeRadialTexture('rgba(255,120,160,0.55)', 'rgba(200,40,90,0.2)', 'rgba(200,40,90,0)'),
+    []
+  );
 
   const eggPos = useMemo(() => {
     if (!egg.visible) return null;
-    if (egg.t < 0) return new THREE.Vector3(2.32, 1.98, 0.3);
+    if (egg.t < 0) return FOLLICLE_POS.clone();
     return new THREE.CatmullRomCurve3(RIGHT_TUBE_POINTS).getPoint(1 - egg.t);
   }, [egg.visible, egg.t]);
 
   const ovaryMat = useMemo(
     () =>
       new THREE.MeshPhysicalMaterial({
-        color: '#f0bd90',
-        roughness: 0.38,
-        clearcoat: 0.6,
-        clearcoatRoughness: 0.4,
-        sheen: 0.5,
+        color: '#f2c49a',
+        roughness: 0.25,
+        clearcoat: 0.8,
+        clearcoatRoughness: 0.3,
+        transmission: 0.45,
+        thickness: 0.5,
+        sheen: 0.6,
         sheenColor: new THREE.Color('#ffd9c2'),
+        transparent: true,
+        opacity: 0.78,
       }),
     []
   );
 
+  /** 卵巢内部的小卵泡（含发光质感） */
   const smallFollicles = useMemo(() => {
     const arr: { pos: [number, number, number]; r: number }[] = [];
     let s = 42;
@@ -229,60 +368,93 @@ function Anatomy({ day, showLabels }: { day: number; showLabels: boolean }) {
         const b = rand() * Math.PI;
         arr.push({
           pos: [
-            c.x + Math.sin(b) * Math.cos(a) * 0.34,
-            c.y + Math.cos(b) * 0.26,
-            c.z + Math.sin(b) * Math.sin(a) * 0.28,
+            c.x + Math.sin(b) * Math.cos(a) * 0.3,
+            c.y + Math.cos(b) * 0.24,
+            c.z + Math.sin(b) * Math.sin(a) * 0.26,
           ],
-          r: 0.055 + rand() * 0.03,
+          r: 0.055 + rand() * 0.035,
         });
       }
     });
     return arr;
   }, []);
 
+  const isMenstrual = phase.id === 'menstrual';
+
   return (
     <group ref={breathRef}>
-      {/* 子宫壁 —— 果冻感生物组织 */}
+      {/* 子宫壁 —— 半透明琉璃质感，可以直接看见腔内的内膜 */}
       <mesh geometry={uterusGeo}>
         <meshPhysicalMaterial
-          color="#f28ba4"
-          roughness={0.25}
+          color="#f7a8bd"
+          roughness={0.18}
           metalness={0}
-          clearcoat={0.9}
-          clearcoatRoughness={0.25}
-          transmission={0.3}
-          thickness={1.2}
-          ior={1.3}
+          clearcoat={1}
+          clearcoatRoughness={0.2}
+          transmission={0.55}
+          thickness={0.9}
+          ior={1.35}
           attenuationColor="#e2547a"
-          attenuationDistance={1.8}
-          sheen={0.7}
+          attenuationDistance={1.6}
+          sheen={0.8}
           sheenColor={new THREE.Color('#ffd1dc')}
-          iridescence={0.25}
+          iridescence={0.3}
           iridescenceIOR={1.2}
-          emissive="#5e1226"
-          emissiveIntensity={0.55}
+          emissive="#6b1530"
+          emissiveIntensity={0.5}
           transparent
-          opacity={0.85}
+          opacity={0.52}
           side={THREE.DoubleSide}
           depthWrite={false}
         />
       </mesh>
 
-      {/* 子宫内膜 */}
-      <mesh geometry={endoGeo} scale={[endoScale, 1, endoScale]}>
-        <meshStandardMaterial
-          color={phase.id === 'menstrual' ? '#a1123a' : '#e14b7e'}
-          roughness={0.42}
-          emissive={phase.id === 'menstrual' ? '#8f1032' : '#6e1338'}
-          emissiveIntensity={phase.id === 'menstrual' ? 1.4 : 1.0}
+      {/* 宫腔内辉光（随内膜厚度与经期呼吸） */}
+      <sprite position={[0, 1.95, 0]} scale={[1.9, 2.4, 1]}>
+        <spriteMaterial
+          map={cavityGlowTex}
           transparent
-          opacity={0.97}
+          opacity={0.16 + thickness * 0.22 + flow * 0.22}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </sprite>
+
+      {/* 子宫内膜 —— 隔着宫壁可见，随周期增厚 / 经期剥落变薄 */}
+      <mesh geometry={endoGeo} scale={[endoScale, 1, endoScale]}>
+        <meshPhysicalMaterial
+          color={isMenstrual ? '#a1123a' : '#f0567f'}
+          roughness={0.32}
+          clearcoat={0.5}
+          emissive={isMenstrual ? '#8f1032' : '#9c1b47'}
+          emissiveIntensity={isMenstrual ? 1.35 : 0.95}
+          transparent
+          opacity={0.96}
         />
       </mesh>
 
+      {/* 经期：内膜崩落碎片 + 经血粒子流 */}
+      <SheddingFragments intensity={flow} />
+      <BloodParticles intensity={flow} />
+
+      {/* 经血通道微光（阴道内） */}
+      {flow > 0.05 && (
+        <mesh position={[0, -0.6, 0]}>
+          <cylinderGeometry args={[0.09, 0.11, 1.5, 20, 1, true]} />
+          <meshBasicMaterial
+            color="#e11d48"
+            transparent
+            opacity={0.3 * flow}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      )}
+
       {/* 阴道 */}
       <mesh position={[0, -0.65, 0]}>
-        <cylinderGeometry args={[0.17, 0.2, 1.35, 32, 1, true]} />
+        <cylinderGeometry args={[0.17, 0.21, 1.35, 32, 1, true]} />
         <meshPhysicalMaterial
           color="#ea8aa3"
           roughness={0.3}
@@ -290,71 +462,100 @@ function Anatomy({ day, showLabels }: { day: number; showLabels: boolean }) {
           emissive="#571224"
           emissiveIntensity={0.5}
           transparent
-          opacity={0.6}
+          opacity={0.5}
           side={THREE.DoubleSide}
           depthWrite={false}
         />
       </mesh>
 
-      {/* 输卵管 */}
-      <mesh geometry={tubeGeoR}>
-        <meshPhysicalMaterial color="#f0a3b5" roughness={0.35} clearcoat={0.5} transparent opacity={0.9} />
-      </mesh>
-      <mesh geometry={tubeGeoL}>
-        <meshPhysicalMaterial color="#f0a3b5" roughness={0.35} clearcoat={0.5} transparent opacity={0.9} />
-      </mesh>
-      <mesh position={[1.9, 2.02, 0.12]} rotation={[0, 0, -1.1]}>
-        <coneGeometry args={[0.14, 0.22, 24, 1, true]} />
-        <meshPhysicalMaterial color="#f0a3b5" roughness={0.35} transparent opacity={0.85} side={THREE.DoubleSide} />
-      </mesh>
-      <mesh position={[-1.9, 2.02, 0.12]} rotation={[0, 0, 1.1]}>
-        <coneGeometry args={[0.14, 0.22, 24, 1, true]} />
-        <meshPhysicalMaterial color="#f0a3b5" roughness={0.35} transparent opacity={0.85} side={THREE.DoubleSide} />
-      </mesh>
-
-      {/* 卵巢 */}
-      <mesh position={OVARY_R} scale={[1, 0.78, 0.72]} material={ovaryMat}>
-        <sphereGeometry args={[0.5, 48, 36]} />
-      </mesh>
-      <mesh position={OVARY_L} scale={[1, 0.78, 0.72]} material={ovaryMat}>
-        <sphereGeometry args={[0.5, 48, 36]} />
-      </mesh>
-
-      {/* 小卵泡 */}
-      {smallFollicles.map((f, i) => (
-        <mesh key={i} position={f.pos}>
-          <sphereGeometry args={[f.r, 20, 14]} />
-          <meshPhysicalMaterial color="#ffe3ee" roughness={0.2} clearcoat={0.8} transparent opacity={0.9} />
-        </mesh>
-      ))}
-
-      {/* 优势卵泡 */}
-      {follicle > 0 && (
-        <mesh position={[2.32, 1.98, 0.3]}>
-          <sphereGeometry args={[follicle, 32, 24]} />
+      {/* 宫颈黏液（湿润期可见；排卵期变蛋清样透明拉丝） */}
+      {mucus.level >= 2 && (
+        <mesh position={[0, 0.4, 0]}>
+          <sphereGeometry args={[mucus.level === 3 ? 0.13 : 0.1, 24, 18]} />
           <meshPhysicalMaterial
-            color="#ffe6ee"
-            roughness={0.15}
+            color={mucus.level === 3 ? '#d8f6ff' : '#f7efe6'}
+            roughness={mucus.level === 3 ? 0.08 : 0.35}
             clearcoat={1}
-            clearcoatRoughness={0.15}
+            transmission={mucus.level === 3 ? 0.5 : 0.1}
             transparent
-            opacity={0.92}
-            emissive="#ffb9cd"
-            emissiveIntensity={0.5}
+            opacity={mucus.level === 3 ? 0.85 : 0.4}
+            emissive={mucus.level === 3 ? '#8fd8f0' : '#000000'}
+            emissiveIntensity={0.4}
           />
         </mesh>
       )}
 
+      {/* 输卵管 */}
+      <mesh geometry={tubeGeoR}>
+        <meshPhysicalMaterial color="#f2a9ba" roughness={0.3} clearcoat={0.6} transparent opacity={0.85} />
+      </mesh>
+      <mesh geometry={tubeGeoL}>
+        <meshPhysicalMaterial color="#f2a9ba" roughness={0.3} clearcoat={0.6} transparent opacity={0.85} />
+      </mesh>
+      <mesh position={[1.93, 2.14, 0.12]} rotation={[0, 0, -1.15]}>
+        <coneGeometry args={[0.14, 0.22, 24, 1, true]} />
+        <meshPhysicalMaterial color="#f2a9ba" roughness={0.3} transparent opacity={0.8} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[-1.93, 2.14, 0.12]} rotation={[0, 0, 1.15]}>
+        <coneGeometry args={[0.14, 0.22, 24, 1, true]} />
+        <meshPhysicalMaterial color="#f2a9ba" roughness={0.3} transparent opacity={0.8} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* 卵巢（半透明，可见内部卵泡） */}
+      <mesh position={OVARY_R} scale={[1, 0.78, 0.72]} material={ovaryMat}>
+        <sphereGeometry args={[0.44, 48, 36]} />
+      </mesh>
+      <mesh position={OVARY_L} scale={[1, 0.78, 0.72]} material={ovaryMat}>
+        <sphereGeometry args={[0.44, 48, 36]} />
+      </mesh>
+
+      {/* 卵巢内的小卵泡 */}
+      {smallFollicles.map((f, i) => (
+        <mesh key={i} position={f.pos}>
+          <sphereGeometry args={[f.r, 20, 14]} />
+          <meshPhysicalMaterial
+            color="#ffe3ee"
+            roughness={0.15}
+            clearcoat={0.9}
+            transparent
+            opacity={0.92}
+            emissive="#ffb9cd"
+            emissiveIntensity={0.35}
+          />
+        </mesh>
+      ))}
+
+      {/* 优势卵泡（右卵巢表面，逐渐长大） */}
+      {follicle > 0 && (
+        <mesh position={FOLLICLE_POS}>
+          <sphereGeometry args={[follicle, 32, 24]} />
+          <meshPhysicalMaterial
+            color="#ffe6ee"
+            roughness={0.1}
+            clearcoat={1}
+            clearcoatRoughness={0.12}
+            transmission={0.3}
+            transparent
+            opacity={0.94}
+            emissive="#ffb9cd"
+            emissiveIntensity={0.7}
+          />
+        </mesh>
+      )}
+
+      {/* 排卵破裂爆发 */}
+      <OvulationBurst day={day} />
+
       {/* 黄体 */}
       {luteum > 0 && (
-        <mesh position={[2.32, 1.98, 0.3]}>
+        <mesh position={FOLLICLE_POS}>
           <sphereGeometry args={[luteum, 32, 24]} />
           <meshPhysicalMaterial
             color="#f7b93e"
             roughness={0.35}
-            clearcoat={0.4}
+            clearcoat={0.5}
             emissive="#c07f08"
-            emissiveIntensity={0.9}
+            emissiveIntensity={1.0}
           />
         </mesh>
       )}
@@ -368,17 +569,17 @@ function Anatomy({ day, showLabels }: { day: number; showLabels: boolean }) {
               color="#fff6e3"
               roughness={0.15}
               emissive="#ffe4ae"
-              emissiveIntensity={2.2}
+              emissiveIntensity={2.4}
               transparent
               opacity={egg.opacity}
             />
           </mesh>
-          <sprite scale={[0.6, 0.6, 1]}>
+          <sprite scale={[0.65, 0.65, 1]}>
             <spriteMaterial
               map={eggGlowTex}
               color="#ffdf9e"
               transparent
-              opacity={0.9 * egg.opacity}
+              opacity={0.95 * egg.opacity}
               depthWrite={false}
               blending={THREE.AdditiveBlending}
             />
@@ -386,22 +587,20 @@ function Anatomy({ day, showLabels }: { day: number; showLabels: boolean }) {
         </group>
       )}
 
-      {/* 经血粒子 */}
-      <BloodParticles intensity={flow} />
-
       {/* 标签 */}
       {showLabels && (
         <>
-          <Tag position={[0, 2.95, 0]} text="子宫" />
-          <Tag position={[1.08, 1.45, 0.35]} text="子宫内膜" color="#fb8ba7" />
-          <Tag position={[-2.12, 2.52, 0.1]} text="卵巢" color="#fcd34d" />
-          <Tag position={[-1.25, 2.78, 0.1]} text="输卵管" color="#f9a8d4" />
-          {follicle > 0.14 && <Tag position={[2.66, 2.62, 0.35]} text="优势卵泡" color="#a5f3fc" />}
-          {luteum > 0.15 && <Tag position={[2.66, 2.62, 0.35]} text="黄体" color="#fcd34d" />}
+          <Tag position={[1.35, 2.95, 0.3]} text="子宫" />
+          <Tag position={[1.18, 1.72, 0.35]} text="子宫内膜" color="#fb8ba7" />
+          <Tag position={[-2.15, 2.62, 0.1]} text="卵巢" color="#fcd34d" />
+          <Tag position={[-1.32, 3.02, 0.1]} text="输卵管" color="#f9a8d4" />
+          {follicle > 0.14 && <Tag position={[2.72, 2.78, 0.35]} text="优势卵泡" color="#a5f3fc" />}
+          {luteum > 0.15 && <Tag position={[2.72, 2.78, 0.35]} text="黄体" color="#fcd34d" />}
           {egg.visible && egg.t >= 0 && egg.t < 1 && (
             <Tag position={[eggPos!.x, eggPos!.y + 0.45, eggPos!.z]} text="卵子" color="#fde68a" />
           )}
-          {flow > 0.05 && <Tag position={[0.95, -0.9, 0.2]} text="经血排出" color="#fb8ba7" />}
+          {flow > 0.05 && <Tag position={[1.05, -0.85, 0.2]} text="经血排出" color="#fb8ba7" />}
+          {mucus.level === 3 && <Tag position={[0.62, 0.42, 0.2]} text="蛋清样宫颈黏液" color="#a5f3fc" />}
           <Tag position={[0, -1.8, 0]} text="阴道" color="#c4b5fd" />
         </>
       )}
@@ -424,21 +623,23 @@ function Anatomy({ day, showLabels }: { day: number; showLabels: boolean }) {
 /* ---------------------------------- 场景 ---------------------------------- */
 
 export default function CycleScene({ day, showLabels }: { day: number; showLabels: boolean }) {
+  const phase = phaseAt(day);
   const stageGlowTex = useMemo(
     () => makeRadialTexture('rgba(244,114,142,0.55)', 'rgba(167,139,250,0.18)', 'rgba(20,9,16,0)'),
     []
   );
   return (
     <Canvas
-      camera={{ position: [0.6, 1.5, 7.4], fov: 40 }}
+      camera={{ position: [0.3, 1.6, 6.7], fov: 42 }}
       dpr={[1, 2]}
       gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
       style={{ background: 'transparent' }}
     >
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[4, 6, 6]} intensity={1.6} color="#fff1f2" />
-      <directionalLight position={[-4, 2, 5]} intensity={0.85} color="#d8b4fe" />
-      <pointLight position={[0, 1.6, 1.6]} intensity={1.0} color="#fb7185" />
+      <ambientLight intensity={0.45} />
+      <directionalLight position={[4, 6, 6]} intensity={1.25} color="#fff1f2" />
+      <directionalLight position={[-4, 2, 5]} intensity={0.65} color="#d8b4fe" />
+      {/* 相位色补光：灯光随周期阶段变换颜色 */}
+      <pointLight position={[0, 1.6, 1.8]} intensity={1.0} color={phase.color} />
 
       {/* 舞台背景光晕 */}
       <mesh position={[0, 0.6, -6]}>
@@ -463,26 +664,30 @@ export default function CycleScene({ day, showLabels }: { day: number; showLabel
       </Environment>
 
       <Float speed={1.1} rotationIntensity={0.1} floatIntensity={0.22}>
-        <group position={[0, -0.5, 0]}>
+        <group position={[0, -0.62, 0]} scale={1.05}>
           <Anatomy day={day} showLabels={showLabels} />
+          {/* 魔环光晕 */}
+          <HaloRing radius={3.0} color="#f9a8d4" tilt={1.25} speed={0.06} opacity={0.14} />
+          <HaloRing radius={3.35} color="#c4b5fd" tilt={1.85} speed={-0.045} opacity={0.08} />
         </group>
       </Float>
 
-      <ContactShadows position={[0, -2.55, 0]} opacity={0.5} scale={11} blur={2.8} far={4.5} color="#2b0716" />
-      <Sparkles count={80} scale={[10, 7, 7]} size={1.8} speed={0.22} opacity={0.4} color="#f9a8d4" />
+      <ContactShadows position={[0, -2.7, 0]} opacity={0.5} scale={11} blur={2.8} far={4.5} color="#2b0716" />
+      <Sparkles count={90} scale={[10, 7, 7]} size={1.8} speed={0.22} opacity={0.4} color="#f9a8d4" />
+      <Sparkles count={40} scale={[12, 8, 8]} size={2.6} speed={0.15} opacity={0.25} color="#c4b5fd" />
 
       <OrbitControls
-        target={[0, 0.5, 0]}
+        target={[0, 0.55, 0]}
         enablePan={false}
-        minDistance={4}
-        maxDistance={12}
+        minDistance={3.4}
+        maxDistance={11}
         maxPolarAngle={Math.PI * 0.72}
         autoRotate
-        autoRotateSpeed={0.55}
+        autoRotateSpeed={0.45}
       />
 
       <EffectComposer>
-        <Bloom luminanceThreshold={0.18} intensity={0.55} mipmapBlur radius={0.72} />
+        <Bloom luminanceThreshold={0.24} intensity={0.48} mipmapBlur radius={0.72} />
         <Vignette offset={0.22} darkness={0.62} />
       </EffectComposer>
     </Canvas>
