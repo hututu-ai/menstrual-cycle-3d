@@ -3,12 +3,15 @@ import CycleScene from '../components/CycleScene';
 import PhasePanel from '../components/PhasePanel';
 import TimelineControls from '../components/TimelineControls';
 import { CYCLE_DAYS, phaseAt } from '../cycle/cycleData';
-import { Tag, MousePointer2, BookOpen, Venus, Sparkle } from 'lucide-react';
+import { VULVA_PARTS } from '../cycle/vulvaData';
+import { Tag, MousePointer2, BookOpen, Venus, Sparkle, Droplet, X } from 'lucide-react';
 import KnowledgeBase from '../components/KnowledgeBase';
 import VulvaScene from '../components/VulvaScene';
 import VulvaPanel from '../components/VulvaPanel';
+import MechanismScene from '../components/MechanismScene';
+import MechanismPanel from '../components/MechanismPanel';
 
-type ViewMode = 'internal' | 'vulva';
+type ViewMode = 'internal' | 'mechanism' | 'vulva';
 
 export default function Home() {
   const [day, setDay] = useState(1);
@@ -16,10 +19,12 @@ export default function Home() {
   const [speed, setSpeed] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
   const [kbOpen, setKbOpen] = useState(false);
-  const [view, setView] = useState<ViewMode>(() =>
-    new URLSearchParams(window.location.search).get('view') === 'vulva' ? 'vulva' : 'internal'
-  );
+  const [view, setView] = useState<ViewMode>(() => {
+    const v = new URLSearchParams(window.location.search).get('view');
+    return v === 'vulva' || v === 'mechanism' ? v : 'internal';
+  });
   const [selectedPart, setSelectedPart] = useState<string | null>(null);
+  const selectedPartInfo = selectedPart ? VULVA_PARTS.find((p) => p.name === selectedPart) : null;
   const rafRef = useRef<number>(0);
   const lastRef = useRef<number>(0);
   const phase = phaseAt(day);
@@ -92,9 +97,9 @@ export default function Home() {
       {/* 主区域 */}
       <div className="relative z-10 flex min-h-0 flex-1">
         <main className="relative min-w-0 flex-1">
-          {view === 'internal' ? (
-            <CycleScene day={day} showLabels={showLabels} />
-          ) : (
+          {view === 'internal' && <CycleScene day={day} showLabels={showLabels} />}
+          {view === 'mechanism' && <MechanismScene />}
+          {view === 'vulva' && (
             <VulvaScene showLabels={showLabels} selected={selectedPart} onSelect={setSelectedPart} />
           )}
 
@@ -102,7 +107,8 @@ export default function Home() {
           <div className="absolute left-1/2 top-2 flex -translate-x-1/2 overflow-hidden rounded-full border border-white/10 bg-[#140910]/70 backdrop-blur-xl">
             {(
               [
-                { id: 'internal', label: '内部器官 · 周期', icon: Sparkle },
+                { id: 'internal', label: '周期总览', icon: Sparkle },
+                { id: 'mechanism', label: '经血机制', icon: Droplet },
                 { id: 'vulva', label: '认识外阴', icon: Venus },
               ] as const
             ).map((v) => {
@@ -127,6 +133,37 @@ export default function Home() {
               );
             })}
           </div>
+
+          {/* 外阴讲解卡：固定在画布左下角，不遮挡模型 */}
+          {view === 'vulva' && selectedPartInfo && (
+            <div className="absolute bottom-6 left-6 w-[280px]">
+              <div
+                className="phase-in rounded-2xl border p-4 backdrop-blur-2xl"
+                style={{
+                  borderColor: `${selectedPartInfo.color}50`,
+                  background: 'rgba(20, 9, 16, 0.82)',
+                  boxShadow: `0 12px 40px rgba(0,0,0,0.5), 0 0 32px ${selectedPartInfo.color}20`,
+                }}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span
+                    className="font-display text-[16px] font-bold"
+                    style={{ color: selectedPartInfo.color, textShadow: `0 0 16px ${selectedPartInfo.color}60` }}
+                  >
+                    {selectedPartInfo.name}
+                  </span>
+                  <button
+                    onClick={() => setSelectedPart(null)}
+                    className="flex h-5 w-5 items-center justify-center rounded-full text-white/40 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+                <p className="mt-2 text-[12px] leading-relaxed text-white/75">{selectedPartInfo.desc}</p>
+                <p className="mt-2 text-[9px] text-white/30">点击模型上的其他部位可继续探索</p>
+              </div>
+            </div>
+          )}
 
           {/* 大字天数覆盖层（仅周期视图） */}
           {view === 'internal' && (
@@ -175,11 +212,11 @@ export default function Home() {
           className="w-[392px] shrink-0 border-l border-white/[0.07] backdrop-blur-2xl max-lg:hidden"
           style={{ background: 'linear-gradient(180deg, rgba(24,10,18,0.72), rgba(16,8,14,0.82))' }}
         >
-          {view === 'internal' ? (
+          {view === 'internal' && (
             <PhasePanel day={day} onJumpTo={(d) => setDay(d)} />
-          ) : (
-            <VulvaPanel selected={selectedPart} onSelect={setSelectedPart} />
           )}
+          {view === 'mechanism' && <MechanismPanel />}
+          {view === 'vulva' && <VulvaPanel selected={selectedPart} onSelect={setSelectedPart} />}
         </aside>
       </div>
 

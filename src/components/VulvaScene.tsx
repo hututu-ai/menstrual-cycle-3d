@@ -34,53 +34,35 @@ function Hotspot({
   position,
   name,
   color,
-  desc,
   selected,
   onSelect,
 }: {
   position: [number, number, number];
   name: string;
   color: string;
-  desc: string;
   selected: boolean;
   onSelect: (name: string | null) => void;
 }) {
   return (
     <Html position={position} center distanceFactor={9.5} zIndexRange={[10, 0]}>
-      {selected ? (
-        <button
-          onClick={() => onSelect(null)}
-          className="block w-[200px] cursor-pointer rounded-xl border p-3 text-left backdrop-blur-xl transition-transform hover:scale-[1.02]"
-          style={{
-            borderColor: `${color}70`,
-            background: 'rgba(20, 9, 16, 0.88)',
-            boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 28px ${color}30`,
-            pointerEvents: 'auto',
-          }}
-        >
-          <span className="text-[13px] font-bold" style={{ color, textShadow: `0 0 12px ${color}80` }}>
-            {name}
-          </span>
-          <span className="mt-1.5 block text-[11px] leading-relaxed text-white/75">{desc}</span>
-          <span className="mt-1.5 block text-[9px] text-white/30">点击卡片收起</span>
-        </button>
-      ) : (
-        <button
-          onClick={() => onSelect(name)}
-          className="whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-medium tracking-wide backdrop-blur-xl transition-transform hover:scale-110"
-          style={{
-            border: `1px solid ${color}55`,
-            color,
-            background: 'rgba(20, 9, 16, 0.65)',
-            boxShadow: `0 0 24px ${color}30, inset 0 1px 0 rgba(255,255,255,0.08)`,
-            textShadow: `0 0 12px ${color}80`,
-            pointerEvents: 'auto',
-            cursor: 'pointer',
-          }}
-        >
-          {name}
-        </button>
-      )}
+      <button
+        onClick={() => onSelect(selected ? null : name)}
+        className="whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-medium tracking-wide backdrop-blur-xl transition-all hover:scale-110"
+        style={{
+          border: `1px solid ${selected ? color : color + '55'}`,
+          color,
+          background: selected ? `${color}22` : 'rgba(20, 9, 16, 0.65)',
+          boxShadow: selected
+            ? `0 0 28px ${color}60, inset 0 1px 0 rgba(255,255,255,0.12)`
+            : `0 0 24px ${color}30, inset 0 1px 0 rgba(255,255,255,0.08)`,
+          textShadow: `0 0 12px ${color}80`,
+          pointerEvents: 'auto',
+          cursor: 'pointer',
+          transform: selected ? 'scale(1.08)' : undefined,
+        }}
+      >
+        {name}
+      </button>
     </Html>
   );
 }
@@ -147,6 +129,7 @@ const PART_SPOTS: Record<string, { label: [number, number, number]; glow: [numbe
   阴蒂: { label: [1.15, 1.18, 0.55], glow: [0, 0.76, 0.62] },
   尿道口: { label: [-1.1, 0.55, 0.55], glow: [0, 0.12, 0.62] },
   阴道口: { label: [1.2, -0.78, 0.45], glow: [0, -0.68, 0.6] },
+  G点: { label: [-1.3, -1.05, 0.5], glow: [0, -0.45, 0.58] },
   会阴: { label: [0, -2.0, 0.2], glow: [0, -1.55, 0.4] },
 };
 
@@ -242,7 +225,6 @@ function VulvaAnatomy({
             position={PART_SPOTS[p.name].label}
             name={p.name}
             color={p.color}
-            desc={p.desc}
             selected={selected === p.name}
             onSelect={onSelect}
           />
