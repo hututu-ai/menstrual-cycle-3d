@@ -4,26 +4,30 @@ import PhasePanel from '../components/PhasePanel';
 import TimelineControls from '../components/TimelineControls';
 import { CYCLE_DAYS, phaseAt } from '../cycle/cycleData';
 import { VULVA_PARTS } from '../cycle/vulvaData';
-import { Tag, MousePointer2, BookOpen, Venus, Sparkle, Droplet, X } from 'lucide-react';
+import { Tag, MousePointer2, BookOpen, Venus, Sparkle, X, Hourglass } from 'lucide-react';
 import KnowledgeBase from '../components/KnowledgeBase';
 import VulvaScene from '../components/VulvaScene';
 import VulvaPanel from '../components/VulvaPanel';
-import MechanismScene from '../components/MechanismScene';
-import MechanismPanel from '../components/MechanismPanel';
+import LifeScene from '../components/LifeScene';
+import LifePanel from '../components/LifePanel';
 
-type ViewMode = 'internal' | 'mechanism' | 'vulva';
+type ViewMode = 'internal' | 'vulva' | 'life';
 
 export default function Home() {
-  const [day, setDay] = useState(1);
+  const [day, setDay] = useState(() => {
+    const d = parseFloat(new URLSearchParams(window.location.search).get('day') ?? '');
+    return Number.isFinite(d) ? Math.min(28, Math.max(1, d)) : 1;
+  });
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
   const [kbOpen, setKbOpen] = useState(false);
   const [view, setView] = useState<ViewMode>(() => {
     const v = new URLSearchParams(window.location.search).get('view');
-    return v === 'vulva' || v === 'mechanism' ? v : 'internal';
+    return v === 'vulva' ? 'vulva' : v === 'life' ? 'life' : 'internal';
   });
   const [selectedPart, setSelectedPart] = useState<string | null>(null);
+  const [lifeStage, setLifeStage] = useState<string | null>(null);
   const selectedPartInfo = selectedPart ? VULVA_PARTS.find((p) => p.name === selectedPart) : null;
   const rafRef = useRef<number>(0);
   const lastRef = useRef<number>(0);
@@ -98,18 +102,18 @@ export default function Home() {
       <div className="relative z-10 flex min-h-0 flex-1">
         <main className="relative min-w-0 flex-1">
           {view === 'internal' && <CycleScene day={day} showLabels={showLabels} />}
-          {view === 'mechanism' && <MechanismScene />}
           {view === 'vulva' && (
             <VulvaScene showLabels={showLabels} selected={selectedPart} onSelect={setSelectedPart} />
           )}
+          {view === 'life' && <LifeScene selected={lifeStage} onSelect={setLifeStage} />}
 
           {/* 视图切换 */}
           <div className="absolute left-1/2 top-2 flex -translate-x-1/2 overflow-hidden rounded-full border border-white/10 bg-[#140910]/70 backdrop-blur-xl">
             {(
               [
-                { id: 'internal', label: '周期总览', icon: Sparkle },
-                { id: 'mechanism', label: '经血机制', icon: Droplet },
+                { id: 'internal', label: '内部器官 · 周期', icon: Sparkle },
                 { id: 'vulva', label: '认识外阴', icon: Venus },
+                { id: 'life', label: '一生地图', icon: Hourglass },
               ] as const
             ).map((v) => {
               const active = view === v.id;
@@ -215,8 +219,8 @@ export default function Home() {
           {view === 'internal' && (
             <PhasePanel day={day} onJumpTo={(d) => setDay(d)} />
           )}
-          {view === 'mechanism' && <MechanismPanel />}
           {view === 'vulva' && <VulvaPanel selected={selectedPart} onSelect={setSelectedPart} />}
+          {view === 'life' && <LifePanel selected={lifeStage} onSelect={setLifeStage} />}
         </aside>
       </div>
 

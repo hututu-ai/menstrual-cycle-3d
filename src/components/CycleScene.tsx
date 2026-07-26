@@ -58,6 +58,7 @@ const RIGHT_TUBE_POINTS = [
 const OVARY_R = new THREE.Vector3(2.12, 1.82, 0.12);
 const OVARY_L = new THREE.Vector3(-2.12, 1.82, 0.12);
 
+
 /* ---------------------------------- 经血粒子 ---------------------------------- */
 
 function BloodParticles({ intensity }: { intensity: number }) {
@@ -431,7 +432,7 @@ export default function CycleScene({ day, showLabels }: { day: number; showLabel
     <Canvas
       camera={{ position: [0.6, 1.5, 7.4], fov: 40 }}
       dpr={[1, 2]}
-      gl={{ antialias: true, alpha: true }}
+      gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
       style={{ background: 'transparent' }}
     >
       <ambientLight intensity={0.6} />

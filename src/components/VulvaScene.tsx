@@ -248,7 +248,7 @@ export default function VulvaScene({
     <Canvas
       camera={{ position: [0, -0.05, 6.4], fov: 42 }}
       dpr={[1, 2]}
-      gl={{ antialias: true, alpha: true }}
+      gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
       style={{ background: 'transparent' }}
     >
       <ambientLight intensity={0.6} />

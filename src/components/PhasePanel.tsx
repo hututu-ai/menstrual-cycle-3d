@@ -1,7 +1,7 @@
 import { PHASES, phaseAt, endometriumThickness, endometriumMM } from '../cycle/cycleData';
 import HormoneChart from './HormoneChart';
 import DailyReport from './DailyReport';
-import { Eye, HeartHandshake } from 'lucide-react';
+import { Eye, HeartHandshake, ClipboardList, Dumbbell, Salad, Briefcase, Users } from 'lucide-react';
 
 interface Props {
   day: number;
@@ -103,10 +103,32 @@ export default function PhasePanel({ day, onJumpTo }: Props) {
               ))}
             </ul>
           </div>
+          <div className="rounded-xl border border-amber-300/15 bg-amber-300/[0.05] p-3">
+            <h4 className="flex items-center gap-1.5 text-[12px] font-semibold text-amber-300">
+              <ClipboardList size={13} />
+              身体使用说明书 · 这个阶段适合
+            </h4>
+            <div className="mt-2.5 grid grid-cols-2 gap-1.5">
+              {(
+                [
+                  { icon: Dumbbell, label: '运动', text: phase.sync.exercise },
+                  { icon: Salad, label: '饮食', text: phase.sync.diet },
+                  { icon: Briefcase, label: '工作', text: phase.sync.work },
+                  { icon: Users, label: '社交', text: phase.sync.social },
+                ] as const
+              ).map((item) => (
+                <div key={item.label} className="rounded-lg bg-white/[0.04] p-2">
+                  <div className="flex items-center gap-1 text-[10.5px] font-semibold" style={{ color: phase.color }}>
+                    <item.icon size={11} />
+                    {item.label}
+                  </div>
+                  <p className="mt-1 text-[10.5px] leading-relaxed text-white/60">{item.text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
-
-      {/* 今日身体报告（全身维度） */}
       <DailyReport day={day} />
 
       {/* 子宫内膜厚度 */}

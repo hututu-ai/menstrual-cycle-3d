@@ -20,6 +20,8 @@ export interface Phase {
   care: string[];
   // 该阶段代表性的一天（点击阶段卡片时跳转）
   anchorDay: number;
+  // 身体使用说明书（cycle syncing）：这个阶段适合的运动 / 饮食 / 工作 / 社交
+  sync: { exercise: string; diet: string; work: string; social: string };
 }
 
 export const PHASES: Phase[] = [
@@ -52,6 +54,12 @@ export const PHASES: Phase[] = [
       '布洛芬在疼痛刚开始时服用效果最好（抑制前列腺素）',
       '月经不是“脏”，不必羞耻，也不必勉强自己硬撑',
     ],
+    sync: {
+      exercise: '散步、阴瑜伽、轻柔拉伸；量大的前 2 天避免高强度',
+      diet: '温热好消化；红肉、深绿蔬菜补铁，黑巧克力补镁',
+      work: '安排事务性、低决策的工作，允许节奏慢下来',
+      social: '独处充电期；不想社交时拒绝，不需要愧疚',
+    },
   },
   {
     id: 'follicular',
@@ -80,6 +88,12 @@ export const PHASES: Phase[] = [
       '皮肤状态好，注意防晒就够了',
       '提前备好经期用品，从容迎接下一次月经',
     ],
+    sync: {
+      exercise: '体能巅峰：HIIT、力量训练、学新运动都趁现在',
+      diet: '清爽高蛋白；发酵食物、发芽种子，食欲最可控',
+      work: '开新项目、头脑风暴、学新技能、做重大决定',
+      social: '最适合约会、演讲、社交 —— 你的能量在发光',
+    },
   },
   {
     id: 'ovulation',
@@ -108,6 +122,12 @@ export const PHASES: Phase[] = [
       '分泌物增多时保持干爽，选择棉质透气的内裤',
       '这是雌激素给你的自信高光期，穿喜欢的衣服出门吧',
     ],
+    sync: {
+      exercise: '仍可高强度；若出现排卵痛，当天降回舒缓运动',
+      diet: '多喝水 + 高纤维，帮身体代谢掉高峰的雌激素',
+      work: '谈判、面试、公开表达的黄金 48 小时',
+      social: '表达力与自信的巅峰，重要对话安排在这几天',
+    },
   },
   {
     id: 'luteal',
@@ -138,6 +158,12 @@ export const PHASES: Phase[] = [
       '温和运动（散步、瑜伽）改善情绪和睡眠',
       '对自己温柔一点：这几天的低落不是你的错',
     ],
+    sync: {
+      exercise: '前半段维持强度，经前一周转散步、瑜伽、游泳',
+      diet: '低盐防水肿；复合碳水稳血糖；坚果深绿菜补镁',
+      work: '适合收尾、复盘、抠细节；重大谈判避开经前',
+      social: '预留独处时间；情绪敏感是激素作用，不是矫情',
+    },
   },
 ];
 
@@ -321,3 +347,4 @@ export function bodySignals(day: number): BodySignal[] {
     { icon: 'Moon', label: '睡眠质量下降' },
   ];
 }
+
