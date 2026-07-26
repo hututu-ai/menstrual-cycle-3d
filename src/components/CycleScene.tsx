@@ -9,7 +9,7 @@ import {
   Lightformer,
   ContactShadows,
 } from '@react-three/drei';
-import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, Vignette, DepthOfField, Noise } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import {
   endometriumThickness,
@@ -188,6 +188,119 @@ function SheddingFragments({ intensity }: { intensity: number }) {
   );
 }
 
+/* ---------------------------------- 花瓣状输卵管伞端（轻柔扑动） ---------------------------------- */
+
+function Fimbriae({ side }: { side: 1 | -1 }) {
+  const group = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    group.current?.children.forEach((c, i) => {
+      c.rotation.z = Math.sin(t * 1.6 + i * 0.9) * 0.16 * side;
+    });
+  });
+  const base: [number, number, number] = [side * 1.93, 2.14, 0.12];
+  return (
+    <group ref={group} position={base}>
+      {Array.from({ length: 5 }).map((_, i) => {
+        const a = ((i - 2) / 2.4) * 0.9; // 扇形展开
+        return (
+          <mesh
+            key={i}
+            position={[side * Math.cos(a) * 0.1, Math.sin(a) * 0.1, 0.02 * i - 0.04]}
+            rotation={[0, 0, side > 0 ? -a : a]}
+            scale={[0.05, 0.13, 0.022]}
+          >
+            <sphereGeometry args={[1, 16, 12]} />
+            <meshPhysicalMaterial
+              color="#f5b1c2"
+              roughness={0.3}
+              clearcoat={0.6}
+              transparent
+              opacity={0.85}
+              emissive="#7c1f3d"
+              emissiveIntensity={0.4}
+            />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
+/* ---------------------------------- 菲涅尔轮廓光晕材质 ---------------------------------- */
+
+function makeFresnelMaterial(color: string, intensity: number) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uColor: { value: new THREE.Color(color) },
+      uIntensity: { value: intensity },
+    },
+    vertexShader: /* glsl */ `
+      varying vec3 vN;
+      varying vec3 vV;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vN = normalize(normalMatrix * normal);
+        vV = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      uniform float uIntensity;
+      varying vec3 vN;
+      varying vec3 vV;
+      void main() {
+        float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.6);
+        gl_FragColor = vec4(uColor, f * uIntensity);
+      }
+    `,
+    transparent: true,
+    side: THREE.BackSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+}
+
+/* ---------------------------------- 漂移星云层 ---------------------------------- */
+
+function Nebula() {
+  const texR = useMemo(
+    () => makeRadialTexture('rgba(251,113,133,0.5)', 'rgba(190,60,110,0.16)', 'rgba(190,60,110,0)'),
+    []
+  );
+  const texV = useMemo(
+    () => makeRadialTexture('rgba(167,139,250,0.45)', 'rgba(120,90,220,0.14)', 'rgba(120,90,220,0)'),
+    []
+  );
+  const texA = useMemo(
+    () => makeRadialTexture('rgba(251,191,36,0.3)', 'rgba(200,140,40,0.1)', 'rgba(200,140,40,0)'),
+    []
+  );
+  const g = useRef<THREE.Group>(null);
+  useFrame(({ clock }, delta) => {
+    if (!g.current) return;
+    const t = clock.elapsedTime;
+    g.current.children.forEach((c, i) => {
+      c.position.x += Math.sin(t * 0.05 + i * 2.1) * delta * 0.06;
+      c.position.y += Math.cos(t * 0.04 + i * 1.7) * delta * 0.04;
+    });
+  });
+  return (
+    <group ref={g}>
+      <sprite position={[-5.5, 2.5, -5]} scale={[13, 9, 1]}>
+        <spriteMaterial map={texR} transparent opacity={0.5} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </sprite>
+      <sprite position={[5, -1, -6.5]} scale={[15, 10, 1]}>
+        <spriteMaterial map={texV} transparent opacity={0.45} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </sprite>
+      <sprite position={[4.5, 3.5, -4]} scale={[9, 7, 1]}>
+        <spriteMaterial map={texA} transparent opacity={0.35} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </sprite>
+    </group>
+  );
+}
+
 /* ---------------------------------- 排卵破裂光环 ---------------------------------- */
 
 function OvulationBurst({ day }: { day: number }) {
@@ -287,12 +400,66 @@ function Anatomy({ day, showLabels }: { day: number; showLabels: boolean }) {
   const mucus = cervicalMucus(day);
 
   const breathRef = useRef<THREE.Group>(null);
+  const uTime = useRef({ value: 0 });
+  const uContract = useRef({ value: 0 });
   useFrame(({ clock }) => {
     if (breathRef.current) {
       const s = 1 + Math.sin(clock.elapsedTime * 1.1) * 0.008;
       breathRef.current.scale.setScalar(s);
     }
+    uTime.current.value = clock.elapsedTime;
+    // 经期：子宫收缩波增强（痛经的生理机制可视化）
+    const target = phase.id === 'menstrual' ? 1 : 0;
+    uContract.current.value = THREE.MathUtils.lerp(uContract.current.value, target, 0.04);
   });
+
+  /** 子宫壁材质：琉璃质感 + 顶点有机搏动（平时微蠕动，经期收缩波） */
+  const uterusMat = useMemo(() => {
+    const m = new THREE.MeshPhysicalMaterial({
+      color: '#f7a8bd',
+      roughness: 0.18,
+      metalness: 0,
+      clearcoat: 1,
+      clearcoatRoughness: 0.2,
+      transmission: 0.55,
+      thickness: 0.9,
+      ior: 1.35,
+      attenuationColor: '#e2547a',
+      attenuationDistance: 1.6,
+      sheen: 0.8,
+      sheenColor: new THREE.Color('#ffd1dc'),
+      iridescence: 0.3,
+      iridescenceIOR: 1.2,
+      emissive: '#6b1530',
+      emissiveIntensity: 0.5,
+      transparent: true,
+      opacity: 0.52,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    m.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = uTime.current;
+      shader.uniforms.uContract = uContract.current;
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nuniform float uTime;\nuniform float uContract;'
+        )
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+          {
+            float wave = sin(position.y * 3.2 - uTime * 2.2) * 0.5 + 0.5;
+            float breathe = sin(uTime * 1.1 + position.y * 1.5) * 0.005;
+            float amp = breathe + wave * uContract * 0.045;
+            transformed += objectNormal * amp;
+          }`
+        );
+    };
+    return m;
+  }, []);
+
+  const fresnelMat = useMemo(() => makeFresnelMaterial('#ff9db8', 0.5), []);
 
   const uterusGeo = useMemo(
     () => new THREE.LatheGeometry(smoothProfile(UTERUS_PROFILE), 96),
@@ -383,31 +550,11 @@ function Anatomy({ day, showLabels }: { day: number; showLabels: boolean }) {
 
   return (
     <group ref={breathRef}>
-      {/* 子宫壁 —— 半透明琉璃质感，可以直接看见腔内的内膜 */}
-      <mesh geometry={uterusGeo}>
-        <meshPhysicalMaterial
-          color="#f7a8bd"
-          roughness={0.18}
-          metalness={0}
-          clearcoat={1}
-          clearcoatRoughness={0.2}
-          transmission={0.55}
-          thickness={0.9}
-          ior={1.35}
-          attenuationColor="#e2547a"
-          attenuationDistance={1.6}
-          sheen={0.8}
-          sheenColor={new THREE.Color('#ffd1dc')}
-          iridescence={0.3}
-          iridescenceIOR={1.2}
-          emissive="#6b1530"
-          emissiveIntensity={0.5}
-          transparent
-          opacity={0.52}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
-      </mesh>
+      {/* 子宫壁 —— 半透明琉璃质感 + 有机搏动，可以直接看见腔内的内膜 */}
+      <mesh geometry={uterusGeo} material={uterusMat} />
+
+      {/* 菲涅尔轮廓光晕壳（随视角变化的玫瑰色勾边） */}
+      <mesh geometry={uterusGeo} scale={1.045} material={fresnelMat} />
 
       {/* 宫腔内辉光（随内膜厚度与经期呼吸） */}
       <sprite position={[0, 1.95, 0]} scale={[1.9, 2.4, 1]}>
@@ -492,14 +639,9 @@ function Anatomy({ day, showLabels }: { day: number; showLabels: boolean }) {
       <mesh geometry={tubeGeoL}>
         <meshPhysicalMaterial color="#f2a9ba" roughness={0.3} clearcoat={0.6} transparent opacity={0.85} />
       </mesh>
-      <mesh position={[1.93, 2.14, 0.12]} rotation={[0, 0, -1.15]}>
-        <coneGeometry args={[0.14, 0.22, 24, 1, true]} />
-        <meshPhysicalMaterial color="#f2a9ba" roughness={0.3} transparent opacity={0.8} side={THREE.DoubleSide} />
-      </mesh>
-      <mesh position={[-1.93, 2.14, 0.12]} rotation={[0, 0, 1.15]}>
-        <coneGeometry args={[0.14, 0.22, 24, 1, true]} />
-        <meshPhysicalMaterial color="#f2a9ba" roughness={0.3} transparent opacity={0.8} side={THREE.DoubleSide} />
-      </mesh>
+      {/* 输卵管伞端（花瓣状，轻柔扑动） */}
+      <Fimbriae side={1} />
+      <Fimbriae side={-1} />
 
       {/* 卵巢（半透明，可见内部卵泡） */}
       <mesh position={OVARY_R} scale={[1, 0.78, 0.72]} material={ovaryMat}>
@@ -632,7 +774,13 @@ export default function CycleScene({ day, showLabels }: { day: number; showLabel
     <Canvas
       camera={{ position: [0.3, 1.6, 6.7], fov: 42 }}
       dpr={[1, 2]}
-      gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
+      gl={{
+        antialias: true,
+        alpha: true,
+        preserveDrawingBuffer: true,
+        toneMapping: THREE.ACESFilmicToneMapping,
+        toneMappingExposure: 1.25,
+      }}
       style={{ background: 'transparent' }}
     >
       <ambientLight intensity={0.45} />
@@ -663,6 +811,9 @@ export default function CycleScene({ day, showLabels }: { day: number; showLabel
         </group>
       </Environment>
 
+      {/* 漂移星云：前景/中景/远景三层纵深 */}
+      <Nebula />
+
       <Float speed={1.1} rotationIntensity={0.1} floatIntensity={0.22}>
         <group position={[0, -0.62, 0]} scale={1.05}>
           <Anatomy day={day} showLabels={showLabels} />
@@ -687,7 +838,9 @@ export default function CycleScene({ day, showLabels }: { day: number; showLabel
       />
 
       <EffectComposer>
+        <DepthOfField focusDistance={0.045} focalLength={0.018} bokehScale={1.4} />
         <Bloom luminanceThreshold={0.24} intensity={0.48} mipmapBlur radius={0.72} />
+        <Noise opacity={0.05} />
         <Vignette offset={0.22} darkness={0.62} />
       </EffectComposer>
     </Canvas>
