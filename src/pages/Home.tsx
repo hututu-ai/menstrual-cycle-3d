@@ -224,7 +224,7 @@ export default function Home() {
           {view === 'internal' && (
             <PhasePanel day={day} onJumpTo={(d) => setDay(d)} />
           )}
-          {view === 'vulva' && <VulvaPanel selected={selectedPart} onSelect={setSelectedPart} />}
+          {view === 'vulva' && <VulvaPanel />}
           {view === 'life' && <LifePanel selected={lifeStage} onSelect={setLifeStage} />}
         </aside>
       </div>

@@ -1,4 +1,4 @@
-import { VULVA_PARTS, VULVA_FACTS } from '../cycle/vulvaData';
+import { VULVA_FACTS } from '../cycle/vulvaData';
 import { Eye, ShieldCheck, ArrowRight, Droplets, Heart, Hand } from 'lucide-react';
 
 const ICONS: Record<string, typeof Eye> = {
@@ -10,13 +10,7 @@ const ICONS: Record<string, typeof Eye> = {
   Hand,
 };
 
-export default function VulvaPanel({
-  selected,
-  onSelect,
-}: {
-  selected: string | null;
-  onSelect: (name: string | null) => void;
-}) {
+export default function VulvaPanel() {
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-5">
       {/* 标题 */}
@@ -35,42 +29,9 @@ export default function VulvaPanel({
           这是你自己就能看到的身体。很多女性从未被允许、也从未被鼓励好好看看它 ——
           从今天开始，大方地认识它的每一个部分。
         </p>
-      </div>
-
-      {/* 部位导览（点击与 3D 模型联动） */}
-      <div className="glass rounded-2xl p-4">
-        <h3 className="text-[13px] font-semibold text-white/80">部位导览</h3>
-        <p className="mt-0.5 text-[10px] text-white/35">点击部位，在 3D 模型上查看标注讲解</p>
-        <ul className="mt-2.5 space-y-1.5">
-          {VULVA_PARTS.map((p) => {
-            const active = selected === p.name;
-            return (
-              <li key={p.name}>
-                <button
-                  onClick={() => onSelect(active ? null : p.name)}
-                  className="flex w-full gap-2.5 rounded-xl border p-2 text-left transition-all"
-                  style={{
-                    borderColor: active ? `${p.color}66` : 'transparent',
-                    background: active ? `${p.color}14` : 'transparent',
-                  }}
-                >
-                  <span
-                    className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ background: p.color, boxShadow: `0 0 8px ${p.color}` }}
-                  />
-                  <div>
-                    <span className="text-[12.5px] font-semibold" style={{ color: p.color }}>
-                      {p.name}
-                    </span>
-                    <p className={`mt-0.5 text-[11.5px] leading-relaxed ${active ? 'text-white/80' : 'text-white/50'}`}>
-                      {p.desc}
-                    </p>
-                  </div>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <p className="mt-2 text-[11px] leading-relaxed text-white/40">
+          点击模型上的部位标注，直接查看每个部位的讲解
+        </p>
       </div>
 
       {/* 关键知识 */}
