@@ -3,9 +3,9 @@ import CycleScene from '../components/CycleScene';
 import PhasePanel from '../components/PhasePanel';
 import TimelineControls from '../components/TimelineControls';
 import { CYCLE_DAYS, phaseAt } from '../cycle/cycleData';
-import { Tag, MousePointer2, BookOpen, Venus, Sparkle } from 'lucide-react';
+import { Tag, MousePointer2, BookOpen, Venus, Sparkle, Layers, Gem } from 'lucide-react';
 import KnowledgeBase from '../components/KnowledgeBase';
-import VulvaScene from '../components/VulvaScene';
+import VulvaScene, { type VulvaLayer } from '../components/VulvaScene';
 import VulvaPanel from '../components/VulvaPanel';
 
 type ViewMode = 'internal' | 'vulva';
@@ -24,6 +24,7 @@ export default function Home() {
     return v === 'vulva' ? 'vulva' : 'internal';
   });
   const [selectedPart, setSelectedPart] = useState<string | null>(null);
+  const [vulvaLayer, setVulvaLayer] = useState<VulvaLayer>('surface');
   const rafRef = useRef<number>(0);
   const lastRef = useRef<number>(0);
   const phase = phaseAt(day);
@@ -103,7 +104,44 @@ export default function Home() {
         <main className="relative min-w-0 flex-1">
           {view === 'internal' && <CycleScene day={day} showLabels={showLabels} />}
           {view === 'vulva' && (
-            <VulvaScene showLabels={showLabels} selected={selectedPart} onSelect={setSelectedPart} />
+            <VulvaScene
+              showLabels={showLabels}
+              selected={selectedPart}
+              onSelect={setSelectedPart}
+              layer={vulvaLayer}
+            />
+          )}
+
+          {/* 外阴图层切换：表层解剖 / 阴蒂全貌 */}
+          {view === 'vulva' && (
+            <div className="absolute bottom-6 left-6 flex overflow-hidden rounded-full border border-white/10 bg-[#140910]/70 backdrop-blur-xl">
+              {(
+                [
+                  { id: 'surface', label: '表层解剖', icon: Layers },
+                  { id: 'clitoris', label: '阴蒂全貌 · 冰山之下', icon: Gem },
+                ] as const
+              ).map((l) => {
+                const active = vulvaLayer === l.id;
+                const Icon = l.icon;
+                return (
+                  <button
+                    key={l.id}
+                    onClick={() => {
+                      setVulvaLayer(l.id);
+                      setSelectedPart(null);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 text-[12px] transition-all"
+                    style={{
+                      background: active ? 'rgba(244,114,182,0.15)' : 'transparent',
+                      color: active ? '#f9a8d4' : 'rgba(255,255,255,0.45)',
+                    }}
+                  >
+                    <Icon size={13} />
+                    {l.label}
+                  </button>
+                );
+              })}
+            </div>
           )}
 
           {/* 视图切换 */}

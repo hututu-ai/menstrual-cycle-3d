@@ -55,6 +55,30 @@ export interface VulvaFact {
   content: string;
 }
 
+/** 阴蒂全貌（冰山之下）：内部结构的四个部分 */
+export const CLITORIS_PARTS: VulvaPart[] = [
+  {
+    name: '阴蒂头',
+    color: '#fb7185',
+    desc: '唯一露在体外的部分，密集约 8000 条神经末梢 —— 但它只是整个阴蒂的十分之一',
+  },
+  {
+    name: '阴蒂体',
+    color: '#f472b6',
+    desc: '从阴蒂头向耻骨后方延伸的主体，由勃起组织构成，兴奋时会充血膨大',
+  },
+  {
+    name: '阴蒂脚',
+    color: '#e879f9',
+    desc: '两条沿耻骨弓向后下方延伸的「长腿」，与阴蒂体同源，最深可延伸近 10 cm',
+  },
+  {
+    name: '前庭球',
+    color: '#c084fc',
+    desc: '环绕阴道口两侧的勃起组织，兴奋时充血肿胀 —— 所谓「G 点」敏感，很可能与它和阴蒂脚相关',
+  },
+];
+
 export const VULVA_FACTS: VulvaFact[] = [
   {
     icon: 'Eye',

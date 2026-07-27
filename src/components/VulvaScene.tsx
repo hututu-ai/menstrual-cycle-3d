@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { useMemo, useRef, useState } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import {
   OrbitControls,
   Html,
@@ -8,11 +8,14 @@ import {
   Environment,
   Lightformer,
   ContactShadows,
+  useCursor,
 } from '@react-three/drei';
-import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, Vignette, DepthOfField, Noise } from '@react-three/postprocessing';
 import { X } from 'lucide-react';
 import * as THREE from 'three';
-import { VULVA_PARTS } from '../cycle/vulvaData';
+import { VULVA_PARTS, CLITORIS_PARTS } from '../cycle/vulvaData';
+
+export type VulvaLayer = 'surface' | 'clitoris';
 
 /* ---------------------------------- 工具 ---------------------------------- */
 
@@ -27,6 +30,63 @@ function makeRadialTexture(inner: string, mid: string, outer: string) {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 256, 256);
   return new THREE.CanvasTexture(c);
+}
+
+/** 皮肤微纹理 bump 贴图（程序生成，细颗粒） */
+function makeSkinBump() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = '#808080';
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 2600; i++) {
+    const x = Math.random() * 256;
+    const y = Math.random() * 256;
+    const r = 0.4 + Math.random() * 1.4;
+    const v = 108 + Math.floor(Math.random() * 80);
+    ctx.fillStyle = `rgb(${v},${v},${v})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(3, 3);
+  return t;
+}
+
+/** 菲涅尔轮廓光晕材质 */
+function makeFresnelMaterial(color: string, intensity: number) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uColor: { value: new THREE.Color(color) },
+      uIntensity: { value: intensity },
+    },
+    vertexShader: /* glsl */ `
+      varying vec3 vN;
+      varying vec3 vV;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vN = normalize(normalMatrix * normal);
+        vV = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      uniform float uIntensity;
+      varying vec3 vN;
+      varying vec3 vV;
+      void main() {
+        float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.8);
+        gl_FragColor = vec4(uColor, f * uIntensity);
+      }
+    `,
+    transparent: true,
+    side: THREE.BackSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
 }
 
 /* ---------------------------------- 交互式标注 ---------------------------------- */
@@ -71,14 +131,18 @@ function Hotspot({
 /* ---------------------------------- 材质 ---------------------------------- */
 
 function useSkinMats() {
-  return useMemo(
-    () => ({
+  return useMemo(() => {
+    const bump = makeSkinBump();
+    return {
       pad: new THREE.MeshPhysicalMaterial({
         color: '#eec39e',
         roughness: 0.55,
         sheen: 0.6,
         sheenColor: new THREE.Color('#ffd9c2'),
         clearcoat: 0.25,
+        bumpMap: bump,
+        bumpScale: 0.012,
+        transparent: true,
       }),
       majora: new THREE.MeshPhysicalMaterial({
         color: '#e8a87c',
@@ -86,6 +150,9 @@ function useSkinMats() {
         sheen: 0.5,
         sheenColor: new THREE.Color('#ffd9c2'),
         clearcoat: 0.35,
+        bumpMap: bump,
+        bumpScale: 0.01,
+        transparent: true,
       }),
       minora: new THREE.MeshPhysicalMaterial({
         color: '#f08ba4',
@@ -96,6 +163,7 @@ function useSkinMats() {
         sheenColor: new THREE.Color('#ffd1dc'),
         emissive: new THREE.Color('#5e1226'),
         emissiveIntensity: 0.35,
+        transparent: true,
       }),
       clitoris: new THREE.MeshPhysicalMaterial({
         color: '#fb8ba7',
@@ -103,26 +171,28 @@ function useSkinMats() {
         clearcoat: 0.9,
         emissive: new THREE.Color('#8f1032'),
         emissiveIntensity: 0.7,
+        transparent: true,
       }),
       opening: new THREE.MeshPhysicalMaterial({
         color: '#6b1d3a',
         roughness: 0.6,
         emissive: new THREE.Color('#3d0a1c'),
         emissiveIntensity: 0.6,
+        transparent: true,
       }),
       urethra: new THREE.MeshPhysicalMaterial({
         color: '#d99a5b',
         roughness: 0.4,
         clearcoat: 0.6,
+        transparent: true,
       }),
-    }),
-    []
-  );
+    };
+  }, []);
 }
 
 /* ---------------------------------- 解剖模型（正视图） ---------------------------------- */
 
-// 各部位的标签位置与点击高亮光点位置
+// 表层：各部位的标签位置与点击高亮光点位置
 const PART_SPOTS: Record<string, { label: [number, number, number]; glow: [number, number, number] }> = {
   阴阜: { label: [0, 2.45, 0.2], glow: [0, 1.5, 0.55] },
   大阴唇: { label: [1.62, 0.55, 0.2], glow: [0.62, -0.25, 0.62] },
@@ -134,20 +204,109 @@ const PART_SPOTS: Record<string, { label: [number, number, number]; glow: [numbe
   会阴: { label: [0, -2.0, 0.2], glow: [0, -1.55, 0.4] },
 };
 
+// 阴蒂全貌（冰山之下）：内部结构标注位置
+const CLITORIS_SPOTS: Record<string, { label: [number, number, number]; glow: [number, number, number] }> = {
+  阴蒂头: { label: [1.3, 0.98, 0.55], glow: [0, 0.74, 0.5] },
+  阴蒂体: { label: [1.4, 1.5, 0.3], glow: [0, 1.05, 0.15] },
+  阴蒂脚: { label: [-1.6, 0.5, 0.25], glow: [-0.7, 0.1, -0.1] },
+  前庭球: { label: [1.45, -0.55, 0.45], glow: [0.32, -0.42, 0.15] },
+};
+
+/* ---------------------------------- 阴蒂内部结构（发光的冰山） ---------------------------------- */
+
+function ClitorisNetwork() {
+  const mat = useMemo(
+    () =>
+      new THREE.MeshPhysicalMaterial({
+        color: '#f472b6',
+        roughness: 0.25,
+        clearcoat: 0.8,
+        transmission: 0.25,
+        emissive: new THREE.Color('#a21c50'),
+        emissiveIntensity: 1.1,
+        transparent: true,
+        opacity: 0.95,
+      }),
+    []
+  );
+
+  const bodyGeo = useMemo(() => new THREE.CapsuleGeometry(0.085, 0.5, 8, 20), []);
+  const cruraGeoR = useMemo(
+    () =>
+      new THREE.TubeGeometry(
+        new THREE.CatmullRomCurve3([
+          new THREE.Vector3(0, 1.12, 0.05),
+          new THREE.Vector3(0.42, 0.68, -0.1),
+          new THREE.Vector3(0.72, 0.08, -0.2),
+          new THREE.Vector3(0.78, -0.55, -0.24),
+        ]),
+        48,
+        0.055,
+        12,
+        false
+      ),
+    []
+  );
+  const cruraGeoL = useMemo(() => cruraGeoR.clone().scale(-1, 1, 1), [cruraGeoR]);
+
+  return (
+    <group>
+      {/* 阴蒂体（向耻骨后方延伸） */}
+      <mesh geometry={bodyGeo} material={mat} position={[0, 1.02, 0.18]} rotation={[-0.72, 0, 0]} />
+      {/* 阴蒂脚（两条长腿） */}
+      <mesh geometry={cruraGeoR} material={mat} />
+      <mesh geometry={cruraGeoL} material={mat} />
+      {/* 前庭球（环绕阴道口两侧） */}
+      <mesh position={[0.32, -0.42, 0.12]} rotation={[0, 0, -0.12]} scale={[0.17, 0.52, 0.13]} material={mat}>
+        <sphereGeometry args={[1, 28, 20]} />
+      </mesh>
+      <mesh position={[-0.32, -0.42, 0.12]} rotation={[0, 0, 0.12]} scale={[0.17, 0.52, 0.13]} material={mat}>
+        <sphereGeometry args={[1, 28, 20]} />
+      </mesh>
+    </group>
+  );
+}
+
+/* ---------------------------------- 外阴主体 ---------------------------------- */
+
 function VulvaAnatomy({
   showLabels,
   selected,
   onSelect,
+  layer,
 }: {
   showLabels: boolean;
   selected: string | null;
   onSelect: (name: string | null) => void;
+  layer: VulvaLayer;
 }) {
   const mats = useSkinMats();
+  const [hovered, setHovered] = useState(false);
+  useCursor(hovered);
+
   const glowTex = useMemo(
     () => makeRadialTexture('rgba(255,255,255,0.95)', 'rgba(251,139,167,0.4)', 'rgba(251,139,167,0)'),
     []
   );
+  const fresnelMat = useMemo(() => makeFresnelMaterial('#ffc9a8', 0.3), []);
+
+  const netRef = useRef<THREE.Group>(null);
+  // 皮肤淡化 / 内部阴蒂结构缩放的平滑过渡
+  useFrame((_, delta) => {
+    const k = 1 - Math.pow(0.002, delta);
+    const skinTarget = layer === 'clitoris' ? 0.2 : 1;
+    mats.pad.opacity = THREE.MathUtils.lerp(mats.pad.opacity, skinTarget, k);
+    mats.majora.opacity = THREE.MathUtils.lerp(mats.majora.opacity, skinTarget, k);
+    mats.minora.opacity = THREE.MathUtils.lerp(mats.minora.opacity, layer === 'clitoris' ? 0.3 : 1, k);
+    mats.opening.opacity = THREE.MathUtils.lerp(mats.opening.opacity, layer === 'clitoris' ? 0.25 : 1, k);
+    mats.urethra.opacity = THREE.MathUtils.lerp(mats.urethra.opacity, skinTarget, k);
+    if (netRef.current) {
+      const sTarget = layer === 'clitoris' ? 1 : 0.0001;
+      const s = THREE.MathUtils.lerp(netRef.current.scale.x || 0.0001, sTarget, k);
+      netRef.current.scale.setScalar(Math.max(s, 0.0001));
+      netRef.current.visible = s > 0.02;
+    }
+  });
 
   const pick =
     (name: string) =>
@@ -156,15 +315,33 @@ function VulvaAnatomy({
       onSelect(selected === name ? null : name);
     };
 
+  const spots = layer === 'clitoris' ? CLITORIS_SPOTS : PART_SPOTS;
+  const parts = layer === 'clitoris' ? CLITORIS_PARTS : VULVA_PARTS;
+  const allParts = useMemo(() => [...VULVA_PARTS, ...CLITORIS_PARTS], []);
+  const selectedInfo = selected ? allParts.find((p) => p.name === selected) : null;
+
   return (
-    <group>
+    <group
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        setHovered(true);
+      }}
+      onPointerOut={() => setHovered(false)}
+    >
       {/* 身体底色（会阴区域皮肤） */}
       <mesh position={[0, -0.1, -0.6]} scale={[2.3, 3.0, 0.85]} material={mats.pad} onClick={pick('会阴')}>
+        <sphereGeometry args={[1, 64, 48]} />
+      </mesh>
+      {/* 菲涅尔轮廓光晕壳 */}
+      <mesh position={[0, -0.1, -0.6]} scale={[2.42, 3.15, 0.9]} material={fresnelMat}>
         <sphereGeometry args={[1, 64, 48]} />
       </mesh>
 
       {/* 阴阜 */}
       <mesh position={[0, 1.5, -0.05]} scale={[1.05, 0.78, 0.5]} material={mats.pad} onClick={pick('阴阜')}>
+        <sphereGeometry args={[1, 48, 36]} />
+      </mesh>
+      <mesh position={[0, 1.5, -0.05]} scale={[1.1, 0.82, 0.53]} material={fresnelMat}>
         <sphereGeometry args={[1, 48, 36]} />
       </mesh>
 
@@ -185,10 +362,10 @@ function VulvaAnatomy({
       </mesh>
 
       {/* 阴蒂（包皮 + 蒂头） */}
-      <mesh position={[0, 0.84, 0.4]} scale={[0.24, 0.26, 0.17]} material={mats.minora} onClick={pick('阴蒂')}>
+      <mesh position={[0, 0.84, 0.4]} scale={[0.24, 0.26, 0.17]} material={mats.minora} onClick={pick(layer === 'clitoris' ? '阴蒂头' : '阴蒂')}>
         <sphereGeometry args={[1, 32, 24]} />
       </mesh>
-      <mesh position={[0, 0.74, 0.47]} material={mats.clitoris} onClick={pick('阴蒂')}>
+      <mesh position={[0, 0.74, 0.47]} material={mats.clitoris} onClick={pick(layer === 'clitoris' ? '阴蒂头' : '阴蒂')}>
         <sphereGeometry args={[0.11, 24, 18]} />
       </mesh>
 
@@ -205,9 +382,14 @@ function VulvaAnatomy({
         <sphereGeometry args={[1, 40, 30]} />
       </mesh>
 
+      {/* 阴蒂内部结构（冰山之下，clitoris 模式淡入） */}
+      <group ref={netRef} scale={0.0001} visible={false}>
+        <ClitorisNetwork />
+      </group>
+
       {/* 选中部位的光点 */}
-      {selected && PART_SPOTS[selected] && (
-        <sprite position={PART_SPOTS[selected].glow} scale={[0.85, 0.85, 1]}>
+      {selected && spots[selected] && (
+        <sprite position={spots[selected].glow} scale={[0.85, 0.85, 1]}>
           <spriteMaterial
             map={glowTex}
             transparent
@@ -218,31 +400,61 @@ function VulvaAnatomy({
         </sprite>
       )}
 
-      {/* 选中部位的讲解卡：直接锚定在部位标注旁（顶部部位向下弹，其余向上弹） */}
+      {/* 交互式标注 */}
+      {showLabels &&
+        parts.map((p) => (
+          <Hotspot
+            key={p.name}
+            position={spots[p.name].label}
+            name={p.name}
+            color={p.color}
+            selected={selected === p.name}
+            onSelect={onSelect}
+          />
+        ))}
+
+      {/* 阴蒂模式的金句标注 */}
+      {layer === 'clitoris' && (
+        <Html position={[0, -2.25, 0.3]} center distanceFactor={9.5} zIndexRange={[10, 0]}>
+          <div
+            className="pointer-events-none select-none whitespace-nowrap rounded-full px-3.5 py-1.5 text-[11px] font-medium tracking-wide backdrop-blur-xl"
+            style={{
+              border: '1px solid rgba(251,191,36,0.4)',
+              color: '#fcd34d',
+              background: 'rgba(20, 9, 16, 0.65)',
+              boxShadow: '0 0 24px rgba(251,191,36,0.25)',
+              textShadow: '0 0 12px rgba(251,191,36,0.6)',
+            }}
+          >
+            「小珍珠」只是冰山一角 —— 整个阴蒂沿骨盆延伸近 10 cm
+          </div>
+        </Html>
+      )}
+
+      {/* 选中部位的讲解卡：锚定在标注旁 */}
       {selected &&
-        PART_SPOTS[selected] &&
+        spots[selected] &&
+        selectedInfo &&
         (() => {
-          const part = VULVA_PARTS.find((p) => p.name === selected);
-          if (!part) return null;
-          const below = PART_SPOTS[selected].label[1] > 1.8;
+          const below = spots[selected].label[1] > 1.8;
           return (
-            <Html position={PART_SPOTS[selected].label} distanceFactor={9.5} zIndexRange={[40, 0]}>
+            <Html position={spots[selected].label} distanceFactor={9.5} zIndexRange={[40, 0]}>
               <div
                 className="phase-in w-[230px] rounded-2xl border p-3.5 backdrop-blur-2xl"
                 style={{
                   transform: below ? 'translate(-50%, 20px)' : 'translate(-50%, calc(-100% - 20px))',
-                  borderColor: `${part.color}55`,
+                  borderColor: `${selectedInfo.color}55`,
                   background: 'rgba(20, 9, 16, 0.88)',
-                  boxShadow: `0 12px 40px rgba(0,0,0,0.55), 0 0 28px ${part.color}25`,
+                  boxShadow: `0 12px 40px rgba(0,0,0,0.55), 0 0 28px ${selectedInfo.color}25`,
                   pointerEvents: 'auto',
                 }}
               >
                 <div className="flex items-start justify-between gap-2">
                   <span
                     className="font-display text-[15px] font-bold"
-                    style={{ color: part.color, textShadow: `0 0 14px ${part.color}60` }}
+                    style={{ color: selectedInfo.color, textShadow: `0 0 14px ${selectedInfo.color}60` }}
                   >
-                    {part.name}
+                    {selectedInfo.name}
                   </span>
                   <button
                     onClick={() => onSelect(null)}
@@ -251,24 +463,34 @@ function VulvaAnatomy({
                     <X size={11} />
                   </button>
                 </div>
-                <p className="mt-1.5 text-[11.5px] leading-relaxed text-white/75">{part.desc}</p>
+                <p className="mt-1.5 text-[11.5px] leading-relaxed text-white/75">{selectedInfo.desc}</p>
               </div>
             </Html>
           );
         })()}
+    </group>
+  );
+}
 
-      {/* 交互式标注 */}
-      {showLabels &&
-        VULVA_PARTS.map((p) => (
-          <Hotspot
-            key={p.name}
-            position={PART_SPOTS[p.name].label}
-            name={p.name}
-            color={p.color}
-            selected={selected === p.name}
-            onSelect={onSelect}
-          />
-        ))}
+/* ---------------------------------- 漂移星云 ---------------------------------- */
+
+function Nebula() {
+  const texR = useMemo(
+    () => makeRadialTexture('rgba(251,113,133,0.45)', 'rgba(190,60,110,0.14)', 'rgba(190,60,110,0)'),
+    []
+  );
+  const texV = useMemo(
+    () => makeRadialTexture('rgba(167,139,250,0.4)', 'rgba(120,90,220,0.12)', 'rgba(120,90,220,0)'),
+    []
+  );
+  return (
+    <group>
+      <sprite position={[-4.5, 2, -5]} scale={[12, 8, 1]}>
+        <spriteMaterial map={texR} transparent opacity={0.5} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </sprite>
+      <sprite position={[4.5, -1.5, -6]} scale={[13, 9, 1]}>
+        <spriteMaterial map={texV} transparent opacity={0.45} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </sprite>
     </group>
   );
 }
@@ -279,22 +501,32 @@ export default function VulvaScene({
   showLabels,
   selected,
   onSelect,
+  layer,
 }: {
   showLabels: boolean;
   selected: string | null;
   onSelect: (name: string | null) => void;
+  layer: VulvaLayer;
 }) {
   return (
     <Canvas
       camera={{ position: [0, -0.05, 6.4], fov: 42 }}
       dpr={[1, 2]}
-      gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
+      gl={{
+        antialias: true,
+        alpha: true,
+        preserveDrawingBuffer: true,
+        toneMapping: THREE.ACESFilmicToneMapping,
+        toneMappingExposure: 1.22,
+      }}
       style={{ background: 'transparent' }}
     >
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[3, 4, 6]} intensity={1.5} color="#fff1f2" />
-      <directionalLight position={[-4, 1, 4]} intensity={0.7} color="#d8b4fe" />
+      <ambientLight intensity={0.55} />
+      <directionalLight position={[3, 4, 6]} intensity={1.4} color="#fff1f2" />
+      <directionalLight position={[-4, 1, 4]} intensity={0.65} color="#d8b4fe" />
       <pointLight position={[0, 0, 3]} intensity={0.5} color="#fb7185" />
+
+      <Nebula />
 
       <Environment resolution={256}>
         <group>
@@ -306,7 +538,7 @@ export default function VulvaScene({
 
       <Float speed={1} rotationIntensity={0.06} floatIntensity={0.15}>
         <group position={[0, 0.1, 0]} scale={0.74}>
-          <VulvaAnatomy showLabels={showLabels} selected={selected} onSelect={onSelect} />
+          <VulvaAnatomy showLabels={showLabels} selected={selected} onSelect={onSelect} layer={layer} />
         </group>
       </Float>
 
@@ -325,7 +557,9 @@ export default function VulvaScene({
       />
 
       <EffectComposer>
+        <DepthOfField focusDistance={0.045} focalLength={0.02} bokehScale={1.3} />
         <Bloom luminanceThreshold={0.2} intensity={0.45} mipmapBlur radius={0.7} />
+        <Noise opacity={0.05} />
         <Vignette offset={0.22} darkness={0.6} />
       </EffectComposer>
     </Canvas>
