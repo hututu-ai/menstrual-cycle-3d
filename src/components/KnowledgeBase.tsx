@@ -1,4 +1,16 @@
-import { X, AlertCircle, Lightbulb } from 'lucide-react';
+import {
+  X,
+  AlertCircle,
+  Lightbulb,
+  Eye,
+  ShieldCheck,
+  ArrowRight,
+  Droplets,
+  Heart,
+  Hand,
+  type LucideIcon,
+} from 'lucide-react';
+import { VULVA_FACTS } from '../cycle/vulvaData';
 
 interface Item {
   type: 'myth' | 'fact';
@@ -57,6 +69,24 @@ const ITEMS: Item[] = [
   },
 ];
 
+const VULVA_ICONS: Record<string, LucideIcon> = {
+  Eye,
+  ShieldCheck,
+  ArrowRight,
+  Droplets,
+  Heart,
+  Hand,
+};
+
+function SectionLabel({ children }: { children: string }) {
+  return (
+    <div className="flex items-center gap-2 px-1 pt-2">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/35">{children}</span>
+      <span className="h-px flex-1 bg-white/[0.07]" />
+    </div>
+  );
+}
+
 export default function KnowledgeBase({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null;
   return (
@@ -65,13 +95,13 @@ export default function KnowledgeBase({ open, onClose }: { open: boolean; onClos
       <button aria-label="关闭" onClick={onClose} className="absolute inset-0 bg-black/55 backdrop-blur-sm" />
       {/* 抽屉 */}
       <div
-        className="fade-in relative flex h-full w-[min(460px,92vw)] flex-col border-l border-white/10 backdrop-blur-2xl"
+        className="kb-drawer fade-in relative flex h-full w-[min(460px,92vw)] flex-col border-l border-white/10 backdrop-blur-2xl"
         style={{ background: 'linear-gradient(180deg, rgba(30,13,22,0.92), rgba(18,8,15,0.95))' }}
       >
         <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
           <div>
             <h2 className="font-display text-[17px] font-bold">科普知识库</h2>
-            <p className="mt-0.5 text-[11px] text-white/40">误区澄清 · 生理事实</p>
+            <p className="mt-0.5 text-[11px] text-white/40">误区澄清 · 生理事实 · 身体认知</p>
           </div>
           <button
             onClick={onClose}
@@ -82,6 +112,8 @@ export default function KnowledgeBase({ open, onClose }: { open: boolean; onClos
         </div>
 
         <div className="flex-1 space-y-3 overflow-y-auto p-5">
+          {/* ——— 周期篇 ——— */}
+          <SectionLabel>周期篇 · 误区与事实</SectionLabel>
           {ITEMS.map((item, i) => (
             <div key={i} className="glass rounded-2xl p-4">
               <div className="flex items-start gap-2.5">
@@ -112,6 +144,37 @@ export default function KnowledgeBase({ open, onClose }: { open: boolean; onClos
               </div>
             </div>
           ))}
+
+          {/* ——— 外阴篇 ——— */}
+          <SectionLabel>外阴篇 · 认识身体的入口</SectionLabel>
+          {VULVA_FACTS.map((fact, i) => {
+            const Icon = VULVA_ICONS[fact.icon] ?? Lightbulb;
+            return (
+              <div key={i} className="glass rounded-2xl p-4">
+                <div className="flex items-start gap-2.5">
+                  <span
+                    className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
+                    style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa' }}
+                  >
+                    <Icon size={12} />
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="rounded-full px-1.5 py-px text-[9px] font-semibold tracking-wide"
+                        style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa' }}
+                      >
+                        身体认知
+                      </span>
+                    </div>
+                    <h3 className="mt-1 text-[13.5px] font-semibold text-white/90">{fact.title}</h3>
+                    <p className="mt-1.5 text-[12px] leading-relaxed text-white/60">{fact.content}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
           <p className="pb-3 pt-1 text-center text-[10px] leading-relaxed text-white/25">
             内容仅供科普参考，不能替代专业医疗建议；如有经期异常、严重痛经等请咨询医生
           </p>

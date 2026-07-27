@@ -24,14 +24,14 @@ export default function PhasePanel({ day, onJumpTo }: Props) {
               onClick={() => onJumpTo(p.anchorDay)}
               className="rounded-xl border px-1 py-2.5 text-center transition-all duration-300"
               style={{
-                background: active ? p.colorSoft : 'rgba(255,255,255,0.03)',
-                borderColor: active ? `${p.color}55` : 'rgba(255,255,255,0.07)',
+                background: active ? p.colorSoft : 'rgba(var(--ink),0.045)',
+                borderColor: active ? `${p.color}55` : 'rgba(var(--ink),0.10)',
                 boxShadow: active ? `0 0 20px ${p.color}22, inset 0 1px 0 rgba(255,255,255,0.08)` : 'none',
               }}
             >
               <div
                 className="text-[12px] font-semibold transition-colors"
-                style={{ color: active ? p.color : 'rgba(255,255,255,0.5)' }}
+                style={{ color: active ? p.color : 'rgba(var(--ink),0.52)' }}
               >
                 {p.name}
               </div>
@@ -48,7 +48,7 @@ export default function PhasePanel({ day, onJumpTo }: Props) {
         key={phase.id}
         className="phase-in rounded-2xl border p-4"
         style={{
-          background: `linear-gradient(155deg, ${phase.colorSoft}, rgba(255,255,255,0.02))`,
+          background: `linear-gradient(155deg, ${phase.colorSoft}, rgba(var(--ink),0.035))`,
           borderColor: `${phase.color}3d`,
           boxShadow: `0 12px 36px rgba(0,0,0,0.35), 0 0 32px ${phase.color}14`,
         }}

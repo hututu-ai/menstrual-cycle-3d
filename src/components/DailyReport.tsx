@@ -171,8 +171,8 @@ export default function DailyReport({ day }: { day: number }) {
                 key={name}
                 className="rounded-md px-1 py-1 text-center text-[9px] transition-all"
                 style={{
-                  background: active ? 'rgba(56,189,248,0.15)' : 'rgba(255,255,255,0.04)',
-                  color: active ? '#7dd3fc' : 'rgba(255,255,255,0.3)',
+                  background: active ? 'rgba(56,189,248,0.15)' : 'rgba(var(--ink),0.05)',
+                  color: active ? '#7dd3fc' : 'rgba(var(--ink),0.45)',
                   border: `1px solid ${active ? 'rgba(56,189,248,0.35)' : 'transparent'}`,
                 }}
               >

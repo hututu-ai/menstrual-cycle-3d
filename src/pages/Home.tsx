@@ -3,10 +3,10 @@ import CycleScene from '../components/CycleScene';
 import PhasePanel from '../components/PhasePanel';
 import TimelineControls from '../components/TimelineControls';
 import { CYCLE_DAYS, phaseAt } from '../cycle/cycleData';
-import { Tag, MousePointer2, BookOpen, Venus, Sparkle, Layers, Gem } from 'lucide-react';
+import { Tag, MousePointer2, BookOpen, Venus, Sparkle, Layers, Gem, Sun, Moon, ArrowRight } from 'lucide-react';
 import KnowledgeBase from '../components/KnowledgeBase';
 import VulvaScene, { type VulvaLayer } from '../components/VulvaScene';
-import VulvaPanel from '../components/VulvaPanel';
+import { initialTheme, persistTheme, type AppTheme } from '../theme';
 
 type ViewMode = 'internal' | 'vulva';
 
@@ -19,6 +19,7 @@ export default function Home() {
   const [speed, setSpeed] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
   const [kbOpen, setKbOpen] = useState(false);
+  const [theme, setTheme] = useState<AppTheme>(initialTheme);
   const [view, setView] = useState<ViewMode>(() => {
     const v = new URLSearchParams(window.location.search).get('view');
     return v === 'vulva' ? 'vulva' : 'internal';
@@ -28,6 +29,13 @@ export default function Home() {
   const rafRef = useRef<number>(0);
   const lastRef = useRef<number>(0);
   const phase = phaseAt(day);
+
+  const toggleTheme = () =>
+    setTheme((t) => {
+      const next = t === 'dark' ? 'light' : 'dark';
+      persistTheme(next);
+      return next;
+    });
 
   // 播放循环：1x ≈ 每秒推进 1.4 天（dt 钳制，防止后台/卡顿后天数瞬移）
   useEffect(() => {
@@ -51,12 +59,17 @@ export default function Home() {
     (window as unknown as { __cycleSetDay?: (d: number) => void }).__cycleSetDay = setDay;
   }, []);
 
+  const light = theme === 'light';
+
   return (
     <div
+      data-theme={theme}
       className="flex h-screen flex-col overflow-hidden text-white"
       style={{
-        background:
-          'radial-gradient(ellipse 70% 60% at 32% 30%, rgba(244,63,94,0.14), transparent 62%), radial-gradient(ellipse 55% 50% at 78% 75%, rgba(167,139,250,0.11), transparent 60%), linear-gradient(160deg, #18090f 0%, #120710 55%, #0d060c 100%)',
+        color: light ? '#4a2035' : '#fff',
+        background: light
+          ? 'radial-gradient(1000px 620px at 85% -10%, rgba(244,114,182,0.30), transparent 60%), radial-gradient(820px 560px at -8% 108%, rgba(167,139,250,0.22), transparent 55%), linear-gradient(165deg, #fdf4f7 0%, #f9ecf2 55%, #f5e6ee 100%)'
+          : 'radial-gradient(ellipse 70% 60% at 32% 30%, rgba(244,63,94,0.14), transparent 62%), radial-gradient(ellipse 55% 50% at 78% 75%, rgba(167,139,250,0.11), transparent 60%), linear-gradient(160deg, #18090f 0%, #120710 55%, #0d060c 100%)',
       }}
     >
       {/* 顶栏 */}
@@ -84,9 +97,9 @@ export default function Home() {
             onClick={() => setShowLabels((v) => !v)}
             className="flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[12px] backdrop-blur-md transition-all"
             style={{
-              borderColor: showLabels ? 'rgba(251,113,133,0.4)' : 'rgba(255,255,255,0.1)',
-              background: showLabels ? 'rgba(251,113,133,0.1)' : 'rgba(255,255,255,0.03)',
-              color: showLabels ? '#fda4af' : 'rgba(255,255,255,0.5)',
+              borderColor: showLabels ? 'rgba(251,113,133,0.4)' : 'rgba(var(--ink),0.12)',
+              background: showLabels ? 'rgba(251,113,133,0.1)' : 'rgba(var(--ink),0.045)',
+              color: showLabels ? '#fda4af' : 'rgba(var(--ink),0.55)',
             }}
           >
             <Tag size={13} />
@@ -96,12 +109,34 @@ export default function Home() {
             <MousePointer2 size={13} />
             拖动旋转 · 滚轮缩放
           </div>
+          <button
+            onClick={toggleTheme}
+            title={light ? '切换到深色模式' : '切换到浅色模式'}
+            className="flex h-[30px] w-[30px] items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/50 backdrop-blur-md transition-all hover:bg-white/10"
+          >
+            {light ? <Moon size={13} /> : <Sun size={13} />}
+          </button>
         </div>
       </header>
 
       {/* 主区域 */}
       <div className="relative z-10 flex min-h-0 flex-1">
-        <main className="relative min-w-0 flex-1">
+        <main
+          className="relative min-w-0 flex-1"
+          style={
+            light
+              ? {
+                  // 浅色主题：舞台保持深色宇宙，套一层圆角「剧场框」
+                  margin: '0 12px 12px 12px',
+                  borderRadius: 24,
+                  overflow: 'hidden',
+                  border: '1px solid rgba(190,84,122,0.20)',
+                  boxShadow: '0 20px 60px rgba(150,60,95,0.22)',
+                  background: '#0d060c',
+                }
+              : undefined
+          }
+        >
           {view === 'internal' && <CycleScene day={day} showLabels={showLabels} />}
           {view === 'vulva' && (
             <VulvaScene
@@ -110,6 +145,39 @@ export default function Home() {
               onSelect={setSelectedPart}
               layer={vulvaLayer}
             />
+          )}
+
+          {/* 外阴视图：左上角悬浮导览卡（深色玻璃，浮在舞台之上，两主题通用） */}
+          {view === 'vulva' && (
+            <div
+              className="absolute left-6 top-14 z-10 w-[300px] rounded-2xl p-4 backdrop-blur-xl"
+              style={{
+                background: 'linear-gradient(160deg, rgba(22,10,17,0.80), rgba(14,7,12,0.68))',
+                border: '1px solid rgba(244,114,182,0.22)',
+                boxShadow: '0 18px 48px rgba(0,0,0,0.45), 0 0 32px rgba(244,114,182,0.10)',
+              }}
+            >
+              <h2 className="font-display text-[17px] font-bold text-white/90">外阴 · 身体的入口</h2>
+              <p className="mt-1 text-[11.5px] leading-relaxed text-white/55">
+                阴阜、大小阴唇、阴蒂、尿道口与阴道口 ——
+                点击模型上的标注，逐个认识它们；切到「冰山之下」，看见阴蒂的全貌。
+              </p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <span className="rounded-full border border-pink-300/25 bg-pink-300/10 px-2 py-0.5 text-[10px] text-pink-200/90">
+                  10,000+ 神经末梢
+                </span>
+                <span className="rounded-full border border-violet-300/25 bg-violet-300/10 px-2 py-0.5 text-[10px] text-violet-200/90">
+                  唯一为愉悦而生的器官
+                </span>
+              </div>
+              <button
+                onClick={() => setKbOpen(true)}
+                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1.5 text-[11.5px] text-amber-200/90 transition-all hover:bg-amber-300/20"
+              >
+                相关科普 · 外阴篇
+                <ArrowRight size={12} />
+              </button>
+            </div>
           )}
 
           {/* 外阴图层切换：表层解剖 / 阴蒂全貌 */}
@@ -216,16 +284,19 @@ export default function Home() {
           )}
         </main>
 
-        {/* 右侧信息面板 */}
-        <aside
-          className="w-[392px] shrink-0 border-l border-white/[0.07] backdrop-blur-2xl max-lg:hidden"
-          style={{ background: 'linear-gradient(180deg, rgba(24,10,18,0.72), rgba(16,8,14,0.82))' }}
-        >
-          {view === 'internal' && (
+        {/* 右侧信息面板（仅周期视图；外阴视图的说明融入舞台悬浮卡） */}
+        {view === 'internal' && (
+          <aside
+            className="w-[392px] shrink-0 border-l border-white/[0.07] backdrop-blur-2xl max-lg:hidden"
+            style={{
+              background: light
+                ? 'linear-gradient(180deg, rgba(255,252,253,0.88), rgba(253,243,248,0.80))'
+                : 'linear-gradient(180deg, rgba(24,10,18,0.72), rgba(16,8,14,0.82))',
+            }}
+          >
             <PhasePanel day={day} onJumpTo={(d) => setDay(d)} />
-          )}
-          {view === 'vulva' && <VulvaPanel />}
-        </aside>
+          </aside>
+        )}
       </div>
 
       {/* 科普知识库抽屉 */}
